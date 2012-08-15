@@ -3,6 +3,9 @@
 #Will   08/06/2012 - setting pipeline to "bad" bandpass, regress for comparison
 #Aarthi 06/12/2012 - redoing preprocess to make the alignment better. using FLIRT to align EPI to mprage. 
 
+#
+# use again=mprage|phys|bp to redo parts of the pipeline
+# eg. again=bp /Volumes/Serena/Rest/rest_scripts/rest_preproc_v6_redoBad 2>&1| tee test.log
 #preprocess rest functinal
 #normalize to MNI brain
 #added afni's anaticor method to remove local nuisance signals
@@ -15,22 +18,23 @@
 #       [http://dx.doi.org/10.1016/j.neuroimage.2010.04.246]
 
 
-set -ex
+set -exv #-n
 cwd=$(pwd)
 [ -n "$1" -a -d "$1" ] && cwd=$1
 
 physo=no       # uses phsyo data: no, with|yes 
-pipetype=first # which pipeline: simul, first, last
+pipetype=last # which pipeline: simul, first, last
+pipetype=first
 
-[ -z "$fresh" ] && fresh=no  # pulls fresh from freesurfer, same as again=mprage
-[ -z "$again" ] && again=    # do this part of the pipeline again: mprage, afni|phys, bp
-                             
+[ -z "$fresh" ]        && fresh=no      # pulls fresh from freesurfer, same as again=mprage
+[ -z "$again" ]        && again=        # do this part of the pipeline again: mprage, afni|phys, bp
+#[ -z "$globalSignal" ] && globalSignal= # keep globalSignal null unless told otherwise
 
 # yes should be "with"
 [ "$physo" = "yes" ] && physo="with"
 
 prefix=pipeTests
-mprageDirSuffix=nuisanceRegressors
+mprageDirSuffix=regsAndStructs
 preprocDirSuffix=preproc_${physo}Physo
 pipelineSuffix="BP${pipetype}_${physo}Physo"
 
@@ -38,6 +42,7 @@ function alert {
   echo "** $@ **"
 }
 #for s in $(ls -d 1*); do
+#for s in 1*/; do
 for s in /Volumes/Serena/Rest/Subjects/10767; do
 
        #subjdir=${cwd}/$s
@@ -116,10 +121,23 @@ for s in /Volumes/Serena/Rest/Subjects/10767; do
               -e a-j -f a+k -g a-k -expr 'a*(1-amongst(0,b,c,d,e,f,g))'         -prefix NBT_erod
 
        # also make nifti copies
-       3dAFNItoNIFTI mprage_bet_RPI+orig 
+       3dAFNItoNIFTI mprage_RPI+orig 
+       3dAFNItoNIFTI mprage_bet_RPI+orig; ln -s mprage_bet_RPI.nii mprage_RPI_bet.nii # need as (basename $mprage)_bet.nii, used as other name elsewhere
        3dAFNItoNIFTI rest_epi_RPI+orig 
+    
+       # this was done way at the bottom before
+       rest_preprocessMprage -r MNI_2mm -n mprage_RPI.nii -d n
+
+
+    else
+     alert "skipped generating alignments and regressors!"
     fi      
+    ###############/END generic for-everyone##################
        
+
+
+
+    ############### w/ || w/o physio##################
 
     cd $subjdir/$prefix/
 
@@ -135,43 +153,62 @@ for s in /Volumes/Serena/Rest/Subjects/10767; do
 
        [ -d $preprocDir ] && rm -r $preprocDir
        #
-       # preprocess with physio dat,run AFNI's automatic preprocess script. Regress out physio, WM and ventrical noise	
+       # preprocess with AFNI's automatic preprocess script
+       # Regress out physio (if we say so), WM and ventrical noise, ignore motion?
+       # capture errts (noise, residulas from 3dDeconvolve)
        #
-       if [ -f /Volumes/Serena/Rest/physio1D/${subj}_RetroTS.slibase.1D -a "$physo" = "with" ]; then
+       # afni_proc default blocks: tshift volreg blur mask scale regress
+       # -regress_motion_per_run vs default regress motion parameters catenated across runs
+       #    more motion-correlated variance can be accounted for at the cost of the extra degrees of freedom (6*(nruns-1))
+       # ricor_regress_method {per-run, across-runs}
+       # mask_apply {epi,anat,group,extents}, to apply in regression
+       physio1d=/Volumes/Serena/Rest/physio1D/${subj}_RetroTS.slibase.1D
+       if [ -f $physio1D  -a "$physo" = "with" ]; then
+          alert "using physo with afni_proc"
+          #TODO: error if subject doesnt have physo and we want it?
+          #TODO: why not -regress_motion_per_run? b/c regress_no_motion? No need for these lines?
           afni_proc.py -bash -execute -out_dir $preprocDir -scr_overwrite -subj_id ${subj} \
                        -dsets $mprageDir/rest_epi_RPI+orig \
                        -blocks tshift volreg mask scale regress \
                        -do_block despike ricor \
-                       -ricor_regs  /Volumes/Serena/Rest/physio1D/${subj}_RetroTS.slibase.1D \
+                       -ricor_regs  $physio1D \
                        -ricor_regress_method 'per-run' \
                        -tshift_opts_ts -tpattern seq+z -mask_apply epi \
-                       -regress_errts_prefix errts -regress_no_motion -regress_opts_3dD \
-                       -GOFORIT 10
+                       -regress_errts_prefix errts -regress_no_motion  \
+                       -regress_opts_3dD -GOFORIT 10
           
        #
        # preprocess without physiodata
        #
        else
-          # TODO: use global mean if no physo
+          alert "afni_proc without physio"
+          physo=no # could be with if no $physio1D
+          # TODO: regress_no_motion!? dont add the registration params from volreg to 3dDeconvolve
+          
           afni_proc.py -bash -execute -out_dir $preprocDir -scr_overwrite -subj_id ${subj} \
                        -dsets $mprageDir/rest_epi_RPI+orig \
                        -blocks tshift volreg mask scale regress \
                        -do_block despike \
                        -regress_motion_per_run \
                        -tshift_opts_ts -tpattern seq+z -mask_apply epi \
-                       -regress_errts_prefix errts -regress_no_motion -regress_opts_3dD \
-                       -GOFORIT 10	
+                       -regress_errts_prefix errts -regress_no_motion \
+                       -regress_opts_3dD -GOFORIT 10	
+
           
        fi
 
+
+       #mkdir $preprocDir   # made by afniproc
+       mv proc.* output.proc* $preprocDir
        cd  $preprocDir
 
-       # demean motion		
+       # demean motion	(an output of afni_proc)
        1d_tool.py -infile dfile.rall.1D -set_nruns 1 -demean -write motion_demean.1D
 
        # conver to nifti
        3dAFNItoNIFTI errts.${subj}+orig
        3dAFNItoNIFTI full_mask.${subj}+orig
+
 
 
 
@@ -208,13 +245,60 @@ for s in /Volumes/Serena/Rest/Subjects/10767; do
        # resample aligned errts to 3.125 x 3.125 x 4
        # functional resolution?
        3dresample -dxyz 3.125 3.125 4 -inset rest_epi_RPI_errts_al+orig -prefix rest_epi_RPI_errts_al_res
+
+
+       ######
+       # extract regressors  (depends on mask created by afni_proc)
+       #####
+
+       for regress in Vent WM_erod NBT_erod aseg_RPI mask_al; do
+          # resample masks to EPI
+          # Vent+orig    -> Vent_res+orig
+          # WM+orig      -> WM_res+orig
+          # NBT_erod+orig-> NBT_erod_res+orig
+          # aseg_RPI+orig-> aseg_RPI_res+orig
+          # mask_al+orig -> mask_al_res+orig
+
+          # most things are in mprage folder, mask_al is in preproc
+          srcdir=$mprageDir
+          [[ $regress =~ mask_al ]] && srcdir=$preprocDir
+
+          3dresample -master $preprocDir/rest_epi_RPI_errts_al_res+orig \
+                     -inset  $srcdir/$regress+orig                      \
+                     -prefix $preprocDir/${regress}_res
+
+
+          # all done with  mask and aseg
+          [[ $regress =~ aseg|mask_al ]] && continue
+
+          ## extract regressors from FSL masks for use as nuisance regressors
+          # Vent_res+orig    -> Vent.1D
+          # WM_erod_res+orig -> WM.1D
+          # NBT_erod_res+org -> NBT.1D
+          3dmaskave -mask $preprocDir/${regress}_res+orig \
+                    -q $preprocDir/rest_epi_RPI_errts_al_res+orig \
+                    > ${regress%_erod*}.1D
+
+
+       done
+
+       # global signal (use afni_proc output mask)
+       3dmaskave -mask full_mask.$subj+orig -quiet $mprageDir/rest_epi_RPI+orig > Global.1D
+       # use global signal/mean if no physo (slide 21 http://afni.nimh.nih.gov/pub/dist/edu/latest/afni_handouts/instastuff.pdf)
+       # or per brain region a la http://languagescience.umd.edu/wiki/MRI-fMRI
+       # BOTH suck according to http://afni.nimh.nih.gov/sscc/rwcox/papers/TroubleAtRest2012.pdf
+       #3dmaskave -mask $preprocDir/full_mask.$subj+orig -quiet $mprageDir/rest_epi_RPI+orig'[4..$]' > GS.1D
+
+    else
+     alert "skipped physo specific afni_proc!"
     fi
     
-    ######################################################
+    ######################/END phsyio specific differences################################
 
     
 
-    ######## pipeline specific
+    ######################## pipeline specific
+    # steps depend on both when to bandpass and if using physio
 
     # need to redo everything on from this point on?
     [[ $again =~ "bp" ]] && fresh="yes"
@@ -230,59 +314,99 @@ for s in /Volumes/Serena/Rest/Subjects/10767; do
        pwd
 
        
-       # extract regressors 
-       for regress in Vent WM_erod NBT_erod aseg_RPI mask_al; do
-          # resample masks to EPI
-          # Vent+orig    -> Vent_res+orig
-          # WM+orig      -> WM_res+orig
-          # NBT_erod+orig-> NBT_erod_res+orig
-          # aseg_RPI+orig-> aseg_RPI_res+orig
-          # mask_al+orig -> mask_al_res+orig
-
-          # most things are in mprage folder, mask_al is in preproc
-          srcdir=$mprageDir
-          [[ $regress =~ mask_al ]] && srcdir=$preprocDir
-
-          3dresample -master $preprocDir/rest_epi_RPI_errts_al_res+orig \
-                     -inset  $srcdir/$regress+orig                      \
-                     -prefix $pipeline/${regress}_res
 
 
-          # all done with  mask and aseg
-          [[ $regress =~ aseg|mask_al ]] && continue
-
-          ## extract regressors from FSL masks for use as nuisance regressors
-          # Vent_res+orig    -> Vent.1D
-          # WM_erod_res+orig -> WM.1D
-          # NBT_erod_res+org -> NBT.1D
-          3dmaskave -mask ${regress}_res+orig \
-                    -q $preprocDir/rest_epi_RPI_errts_al_res+orig \
-                    > ${regress%_erod*}.1D
+       # ANATICOR doesn't like looking inside preprocDir
+       # so make some links
+       for img in $preprocDir/{motion_demean.1D,rest_epi_RPI_errts_al_res+orig*}; do ln -s $img ./; done
 
 
-       done
-
-       if [ $pipe = "first" ]; then 
+       # bandpass if we are doing it before ANATICOR
+       if [ "$pipetype" = "first" ]; then 
+          toRegression=rest_epi_RPI_errts_al_res_bp.nii.gz
+          alert "bandpassing first (make $toRegression)"
           #bandpass filter to remove drfiting and physio signal
-          3dBandpass -prefix resid_bp 0.009 0.08 errts_anaticor+orig
-          3dAFNItoNIFTI -float -prefix resid_bp.nii.gz resid_bp+orig
-          rm resid_bp+orig*
+          3dBandpass -prefix bptmp 0.009 0.08 rest_epi_RPI_errts_al_res+orig
+          3dAFNItoNIFTI -float -prefix $toRegression bptmp+orig
+          rm bptmp+orig*
+       # otherwise just use the results of afniproc
+       else
+          toRegression=rest_epi_RPI_errts_al_res+orig
        fi
 
-       # clean with residual time series (ts is despiked and time shifted)
-       @ANATICOR -ts $preprocDir/rest_epi_RPI_errts_al_res+orig            \
-                 -motion $preprocDir/motion_demean.1D -polort 3         \
-                 -aseg aseg_RPI_res+orig -prefix errts_anaticor -radius 30 \
-                 -nuisance NBT.1D -no_ventricles -Rsq_WMe -coverage -verb
+
+       if [ "$phsyo" = "with" ] ; then
+         alert "Have physio, using @ANATICOR"
+         # regression analysis to remove local artifacts in EPI data using anatomy-based regressors
+         #  -> produce a residual time series  cleaned by ANATICOR model
+         # NEEDS
+         #  * EPI data should be preprocessed (despiking, time- and motion-correction, RETROICOR or RVT stuffs, and so on). [afniproc] 
+         #  * WM mask (from FS)
+         #  * Vents: "-no_ventricles" option should be in the command line and ventricle's time series should be included in "nuisance" 1D file. TODO: where is this:)
+         # http://afni.nimh.nih.gov/sscc/hjj/anaticor
+         @ANATICOR -ts $toRegression                                           \
+                   -motion motion_demean.1D -polort 3                        \
+                   -aseg aseg_RPI_res+orig -prefix errts_anaticor -radius 30 \
+                   -nuisance NBT.1D -no_ventricles -Rsq_WMe -coverage -verb  \
+                   -prefix errts_${physo}Physio
+         
+       else
+         # need a different way to remove local artifacts -- 3dDeconvolve
+         alert "No physio, using 3dDeconvolve" 
+
+         # get motion derivatives
+         1d_tool.py -infile $preprocDir/dfile.rall.1D -set_nruns 1 -derivative -demean -write motion_deriv.1D
+
+         # get derivatives for other regressors
+         for needD in WM Vent Global; do 
+            ln -s $preprocDir/$needD.1D ./
+            1d_tool.py -infile $needD.1D -set_nruns 1 -derivative -demean -write ${needD}_deriv.1D
+            #output: WM_deriv.1D Vent_deriv.1D Global_deriv.1D
+         done
+
+	 3dDeconvolve -input $toRegression     -mask $preprocDir/mask_al_res+orig               \
+                      -fitts fitts.${subj}  -errts errts_${physo}Physio -bucket stats.${subj}   \
+   		      -polort 3                                                                 \
+                      -fout -tout -x1D X.xmat.1D -xjpeg X.jpg                                   \
+                      -num_stimts 18                                                            \
+                      -stim_file 1  WM.1D                               -stim_label 1  stim01   \
+                      -stim_file 2  Vent.1D                             -stim_label 2  stim02   \
+                      -stim_file 3  Global.1D                           -stim_label 3  stim03   \
+                      -stim_file 4  WM_deriv.1D                         -stim_label 4  stim04   \
+                      -stim_file 5  Vent_deriv.1D                       -stim_label 5  stim05   \
+                      -stim_file 6  Global_deriv.1D                     -stim_label 6  stim06   \
+                      -stim_file 7  motion_demean.1D'[0]' -stim_base 7  -stim_label 7  roll_01  \
+                      -stim_file 8  motion_demean.1D'[1]' -stim_base 8  -stim_label 8  pitch_01 \
+                      -stim_file 9  motion_demean.1D'[2]' -stim_base 9  -stim_label 9  yaw_01   \
+                      -stim_file 10 motion_demean.1D'[3]' -stim_base 10 -stim_label 10 dS_01    \
+                      -stim_file 11 motion_demean.1D'[4]' -stim_base 11 -stim_label 11 dL_01    \
+                      -stim_file 12 motion_demean.1D'[5]' -stim_base 12 -stim_label 12 dP_01    \
+                      -stim_file 13 motion_deriv.1D'[0]'  -stim_base 13 -stim_label 13 roll_02  \
+                      -stim_file 14 motion_deriv.1D'[1]'  -stim_base 14 -stim_label 14 pitch_02 \
+                      -stim_file 15 motion_deriv.1D'[2]'  -stim_base 15 -stim_label 15 yaw_02   \
+                      -stim_file 16 motion_deriv.1D'[3]'  -stim_base 16 -stim_label 16 dS_02    \
+                      -stim_file 17 motion_deriv.1D'[4]'  -stim_base 17 -stim_label 17 dL_02    \
+                      -stim_file 18 motion_deriv.1D'[5]'  -stim_base 18 -stim_label 18 dP_02    \
+                      -GOFORIT 10                                                               \
+
+       fi
        
-
-
-       if [ $pipe = "last" ]; then 
+       # bandpass if we haven't 
+       if [ "$pipetype" = "last" ]; then 
+          fromRegression=errts_${physo}Physio_bp
+          alert "bandpassing last (create $fromRegression )" 
           #bandpass filter to remove drfiting and physio signal
-          3dBandpass -prefix resid_bp 0.009 0.08 errts_anaticor+orig
-          3dAFNItoNIFTI -float -prefix resid_bp.nii.gz resid_bp+orig
-          rm resid_bp+orig*
+          3dBandpass -prefix $fromRegression 0.009 0.08 errts_${physo}Physio+orig
+
+       # otherwise use the output of anaticor by itself
+       else
+          fromRegression=errts_${physo}Physio
        fi
+
+       # conver to nifti with name relfecting when bp happened
+       3dAFNItoNIFTI -float -prefix errts_${physo}Physio_bp$pipetype.nii.gz $fromRegression+orig
+       rm $fromRegression+orig*
+
 
        
        #Smooth only within GM mask - only for Kai's stuff, not Aarthi's
@@ -291,50 +415,18 @@ for s in /Volumes/Serena/Rest/Subjects/10767; do
        #3dcalc -a GM_R_res_al+orig -b GM_L_res_al+orig -expr 'a+b' -prefix GM_mask.nii.gz
        
        #Smooth within whole mask. 
-       3dBlurInMask -input resid_bp.nii.gz -FWHM 5 -mask mask_al_res+orig -preserve -prefix resid_bp_b.nii.gz
-       
-       3dcopy resid_bp_b.nii.gz rest_preproc_native.nii.gz 
-       # rest_preproc_native.nii.gz is the preprocess file in native space
-       
-       rm resid_bp_b.nii.gz
-    
+       3dBlurInMask -input errts_${physo}Physio_bp$pipetype.nii.gz -FWHM 5 -mask $preprocDir/mask_al_res+orig -preserve -prefix rest_preproc_native.nii.gz        
+       ### OUTPUT: rest_preproc_native.nii.gz # rest_preproc_native.nii.gz is the preprocess file in native space
+
+       ### FINAL MNI ALIGNED OUTPUT: rest_preproc_mni
+       # use output from rest_preprocessMprage
+       alert "final alignment" 
+       applywarp -i rest_preproc_native -r ~/standard/fsl_mni152/MNI152_T1_2mm.nii.gz -o rest_preproc_mni -w $mprageDir/mprage_RPI_warpcoef	
+    else
+     alert "skipped everything!"
     fi
 
     exit
-
-    # Step 3. normalize mprage to 2mm mni template - going to skip for now because MNI space isn't a priority
-    #
-    [[ $again =~ normal|reg ]] && fresh="yes"
-
-
-
-    #rename oriented to RPI mprages to what they were called originally so michael's script can recognize them. the orginals are now renamed to "originalorientation"
-    3dcopy mprage.nii.gz mprage_originalorientation.nii.gz
-    3dcopy mprage_bet.nii.gz mprage_originalorientation_bet.nii.gz
-    rm mprage.nii.gz
-    rm mprage_bet.nii.gz		
-    3dAFNItoNIFTI -prefix mprage.nii.gz mprage_RPI+orig
-    3dAFNItoNIFTI -prefix mprage_bet.nii.gz mprage_bet_RPI+orig	
-
-    #run michael's normalization script 	
-    source ../../../rest_scripts/rest_preprocessMprage -r MNI_2mm -n mprage.nii.gz -d n
-    
-
-    # Step 4. Warp into mni space
-    #
-    #3dAFNItoNIFTI -prefix all.nii.gz rest_epi_RPI_al+orig 
-    
-    #fslmaths all_bet -Tmean func_mean
-    #bet func_mean func_bet
-    #flirt -in func_bet -ref mprage_bet -out func_to_mprage -omat func_to_mprage.mat -dof 6
-    
-    applywarp -i rest_preproc_native -r ~/standard/fsl_mni152/MNI152_T1_2mm.nii.gz -o rest_preproc_mni -w mprage_warpcoef	
-    
-    #rm all_bet.nii.gz		
-    # rest_preproc_mni is the functional file in MNI space
-    
-    
-
 
     cd ${cwd}
 done
