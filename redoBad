@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+settings="$(dirname $0)/jobcontrolsettings.src"
+logdir="/Volumes/Serena/Rest/Subjects/log/"
+
+function getsettings {
+   [ ! -r $settings ] && echo "no settings file" && exit 1
+   source $settings
+   [ -z "$maxjobs" -o -z "$sleeptime" ] && echo "no maxjobs or sleeptime in $settings" && exit 1
+}
+
+[ -d $logdir ] || mkdir $logdir
+
+getsettings
+
+# already done
+# find ./ -type d -name pipeTests -maxdepth 2
+# .//10674/pipeTests
+# .//10767/pipeTests
+
+# have physio
+#ls /Volumes/Serena/Rest/physio1D/*_RetroTS.slibase.1D
+
+#ls -d /Volumes/Serena/Rest/Subjects/1*/|xargs -n1 basename
+for subj in 10152 10153 10173 10181; do
+
+   # get settings
+   while [ $(jobs -p |wc -l) -ge $maxjobs ]; do 
+     echo "num. jobs >= $maxjobs, sleep $sleeptime"
+     sleep $sleeptime
+     # update settings, incase changed while sleeping
+     getsettings
+   done
+
+   # run
+   echo " == $subj $(jobs -p|wc -l)== "
+   # one line so jobs|wc works
+   for pipe in "-p" "-t ort" "-t 3dD"; do 
+     /Volumes/Serena/Rest/rest_scripts/rest_preproc_v6_redoBad -x -s $subj $pipe 1>$logdir/$subj${pipe/ /_} 2>&1; 
+   done &
+
+
+   # let fork and job count catch up
+   sleep 2;
+
+done
