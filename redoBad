@@ -35,7 +35,12 @@ for subj in 10152 10153 10173 10181; do
    echo " == $subj $(jobs -p|wc -l)== "
    # one line so jobs|wc works
    for pipe in "-p" "-t ort" "-t 3dD"; do 
-     /Volumes/Serena/Rest/rest_scripts/rest_preproc_v6_redoBad -x -s $subj $pipe 1>$logdir/$subj${pipe/ /_} 2>&1; 
+     again="-a afni"
+     [[ "$pipe" =~ "-p" ]] && again= # dont do afni again if don't have to
+     [[ "$pipe" =~ "3dD" ]] && again="-a bp" # dont do afni again if don't have to
+     set -x
+     /Volumes/Serena/Rest/rest_scripts/rest_preproc_v6_redoBad $again -x -s $subj $pipe 1>$logdir/$subj${pipe/ /_} 2>&1; 
+     set +x
    done &
 
 

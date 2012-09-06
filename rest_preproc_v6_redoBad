@@ -12,7 +12,7 @@
 #   -h           this
 #
 # creates pipelineSuffix (final output files for each) directoires
-#   withPhyso      | -p 
+#   withPhysio     | -p 
 #   bp+ort_noPhyso | -t ort  -- use simulanious bandpass
 #   bp+3dD_noPhyso | -t 3dD  -- deconvolve then bandpass
 #
@@ -24,7 +24,7 @@
 #END ######
 
 #Will   09/04/2012 - remove for loop so this script can be used with additional wrapper and job control
-#Will   08/22/2012 - rewrite for there piplines withPhyso, bp+ort_noPhyso, bp+3dD_noPhyso 
+#Will   08/22/2012 - rewrite for three piplines withPhysio, bp+ort_noPhyso, bp+3dD_noPhyso 
 #Will   08/06/2012 - setting pipeline to "bad" bandpass, regress for comparison
 #Aarthi 06/12/2012 - redoing preprocess to make the alignment better. using FLIRT to align EPI to mprage. 
 #
@@ -136,7 +136,8 @@ function _overview {
     innode=$1; innode=$(rm_ext "${innode:1}")
     innode=${innode%\+orig}
     innode=${innode//./_}
-    edges="$edges  $innode -> $nname \n"
+   # edges="$edges  $innode -> $nname \n"
+    edges="$edges $innode -> $globalcount\n"
     shift;
    done
 
@@ -164,6 +165,7 @@ function _overview {
    fi
 
    echo "// $globalcount" >> $graphFile
+   echo " $globalcount [ shape=diamond, label=\"$@\" ] " >> $graphFile
 
    if [ -n "$file" ]; then
       # take a shot if it should be a nifti
@@ -174,7 +176,9 @@ function _overview {
    fi
    
    # add description to each edge, and save
-   echo -e "$edges" | sed -e "/^ *\$/d; s/\$/[ label=\"$@\" ]/" >> $graphFile;
+   #echo -e "$edges" | sed -e "/^ *\$/d; s/\$/[ label=\"$@\" ]/" >> $graphFile; # labels are now nodes!
+   echo -e "$edges" | sed -e "/^ *\$/d;" >> $graphFile;
+   echo "$globalcount -> $nname" >> $graphFile;
 
    return 0
 }
@@ -199,12 +203,17 @@ function alignErrts {
     errts=./errts.${subj}+orig
    betRPI=$mprageDir/mprage_bet_RPI.nii
   outname=./rest_epi_RPI_errts_al
-   while getopts 'i:o:' opt; do
-    case $opt in
-     i) errts=$OPTARG;;
-     o) outname=$OPTARG;;
-    esac
-   done
+  #while getopts 'i:o:' opt; do
+  # case $opt in
+  #  i) errts=$OPTARG;;
+  #  o) outname=$OPTARG;;
+  # esac
+  #done
+  while [ $# -gt 0 ] ; do case $1 in
+    -i) errts=$2; shift 2;;
+    -o) outname=$2; shift 2;;
+    *) echo "$1 not understood by alignErrts" && return 1
+  esac; done
 
   # start with nifti, end with _res+orig
   outname=$(rm_ext $outname).nii.gz
@@ -246,7 +255,7 @@ alert "SUBJ: $subj ($pipetype $again)"
 
 #
 # Step 1. Align mprage and epi, create masks from Freesurfer segementation
-[[ $again =~ "mprage"|all ]] && fresh="yes"
+[[ $again =~ "mprage"|all ]] && fresh="yes" && alert "set fresh at mprage"
 
 if [ ! -d $mprageDir -o "$fresh" = "yes" ] ; then 
             
@@ -371,14 +380,14 @@ fi
 
 
 # need to do everything on from this point again
-[[ $again =~ afni|phsy ]] && fresh="yes"
+[[ $again =~ afni|phsy ]] && fresh="yes" && alert "set fresh at phsyio afni"
 
 #if [ ! -d $pipelineDir -o "$fresh" = "yes" ]; then
   # if fresh, remove old
   #[ -r $pipelineDir ] && rm -r $pipelineDir
 
 
-  #  withPhyso                      afni_proc (w/motion reg), maskave NBT, @ANATICOR, 3dbp (dont need global, WM, etc)
+  #  withPhysio                     afni_proc (w/motion reg), maskave NBT, @ANATICOR, 3dbp (dont need global, WM, etc)
   #  bp+ort_noPhyso: good_nophysio: maskave orig epi, afni_proc (no reg), 3dbp -ort  (need global,WM,etc)
   #  bp+3dD_noPhyso: bad_nophysio:  maskave orig epi, afni_proc (no reg), 3dbp, 3dDeconvolve
 
@@ -386,7 +395,8 @@ fi
 cd $mprageDir/..
 
 case "$pipelineSuffix" in 
- 'withPhyso') 
+ 'withPhysio') 
+   mask_al_res=mask_al_res+orig
 
    [ ! -d $pipelineDir ] && "$fresh" = "yes"
 
@@ -433,7 +443,6 @@ case "$pipelineSuffix" in
       3dresample -master $T1alignedEPI -inset  $mprageDir/aseg_RPI+orig -prefix ./aseg_RPI_res
       3dresample -master $T1alignedEPI -inset  ./mask_al+orig -prefix ./mask_al_res
       3dresample -master $T1alignedEPI -inset $mprageDir/NBT_erod+orig -prefix ./NBT_erod_res
-      mask_al_res=mask_al_res+orig
 
       ### maskave
       3dmaskave -mask NBT_erod_res+orig -q rest_epi_RPI_errts_al_res+orig  > NBT.1D
@@ -467,6 +476,7 @@ case "$pipelineSuffix" in
 
 
  *noPhysio)
+   mask_al_res=$nophysioDir/mask_al_res+orig
     ########################################
     # Pipelines without physiological info #
     ########################################
@@ -475,7 +485,7 @@ case "$pipelineSuffix" in
    ### afni_proc
     
    ## do the common part of the pipeline (namely flirt of mask and epi)
-   [[ $again =~ align|afni|proc || ! -d $nophysioDir ]] && fresh="yes"
+   [[ $again =~ align|afni|proc || ! -d $nophysioDir ]] && fresh="yes" && alert "set fresh at nophysio align"
    if [  "$fresh" = "yes" ]; then
 
       [ -d $nophysioDir ] && rm -r $nophysioDir
@@ -500,7 +510,8 @@ case "$pipelineSuffix" in
       # align mask to structural using nearestneighbor interpolation		
       alignMask # $fullmask -> mask_al{+orig,.nii.gz}
 
-      alignErrts -i pb04.10767.r01.scale+orig -o epi_aproc_al
+      pwd
+      alignErrts -i ./pb04.$subj.r01.scale+orig -o ./epi_aproc_al
       # aligned and resampeld -> epi_aproc_al_res+orig
       T1alignedEPI=epi_aproc_al_res+orig
       #restEPI=$mprageDir/rest_epi_RPI+orig
@@ -533,7 +544,6 @@ case "$pipelineSuffix" in
          # mask_al+orig -> mask_al_res+orig
       done
 
-      mask_al_res=$nophysioDir/mask_al_res+orig
 
 
       for regress in Vent WM_erod NBT_erod; do
@@ -590,7 +600,7 @@ case "$pipelineSuffix" in
    #  bp+3dD_noPhyso 
    ###################
 
-   [[ $again =~ bp|bandpass || ! -d "$pipelineDir" ]] && fresh="yes"
+   [[ $again =~ bp|bandpass || ! -d "$pipelineDir" ]] && fresh="yes" && alert "set fresh at nophysio bp"
    if [ "$fresh" = "yes" ]; then
       # Remove if fresh
       [ -d $pipelineDir ] && rm -r $pipelineDir
@@ -623,7 +633,7 @@ case "$pipelineSuffix" in
          alert "using 'bad' bp+3dD pipeline" 
          ### 3dD
          errts=${T1alignedEPI%+*}_3dDerrts+orig
-         3dDeconvolve -input $nophysioDir/$T1alignedEPI  -mask $nophysioDir/mask_al_res+orig                              \
+         3dDeconvolve -input $nophysioDir/$T1alignedEPI  -mask $mask_al_res
                       -fitts fitts.${subj}  -errts ./$errts -bucket stats.${subj}   \
                       -polort 3                                                                 \
                       -fout -tout -x1D X.xmat.1D -xjpeg X.jpg                                   \
@@ -649,7 +659,7 @@ case "$pipelineSuffix" in
                       -GOFORIT 10                                                               \
 
           _overview "$errts" "-$T1alignedEPI" -motion_deriv.1D -motion_demean.1D \
-                    -WM.1D -Vent.1D -Global.1D -WM_deriv.1D -Vent_deriv.1D -Global_deriv.1D -mask_al_res+orig "3dDeconvolve"
+                    -WM.1D -Vent.1D -Global.1D -WM_deriv.1D -Vent_deriv.1D -Global_deriv.1D -$(basename $mask_al_res) "3dDeconvolve"
 
 
          ### 3dbp
@@ -670,11 +680,12 @@ esac
 
 
 ### Wrap up for all pipelines
-[ "$fresh" != "yes" ] && echo "Didn't do anything,considered skipped" && exit
-[ -z "$pipelineoutfile" ]  && echo "pipeline outfile is empty! Why?!" && exit
+[ "$fresh" != "yes" ] && echo "Didn't do anything,considered skipped" && exit 1
+[ -z "$pipelineoutfile" ]  && echo "pipeline outfile is empty! Why?!" && exit 1
+[ -z "$mask_al_res" ]  && echo "mask_al_res  is empty! Why?!" && exit 1
 # mask_al_res 
 3dBlurInMask -input $pipelineoutfile -FWHM 5 -mask $mask_al_res -preserve -prefix rest_preproc_native.nii.gz        
-_overview rest_preproc_native.nii.gz   -$pipelineoutfile -mask_al_res+orig "Blur"
+_overview rest_preproc_native.nii.gz   -$pipelineoutfile -$mask_al_res "Blur"
 ### OUTPUT: rest_preproc_native.nii.gz # rest_preproc_native.nii.gz is the preprocess file in native space
 
 ### FINAL MNI ALIGNED OUTPUT: rest_preproc_mni
