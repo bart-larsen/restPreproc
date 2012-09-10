@@ -8,6 +8,7 @@
 #   -s subject   required
 #   -t <ort|3dD> bandpass with ort or 3dDeconvolved,3dD is default)
 #   -p           use physio, -t is useless for this
+#   -a           run portion again (<mprage,afni,bp>)
 #   -x           take pictures, make a graph
 #   -h           this
 #
@@ -41,7 +42,7 @@
 #       [http://dx.doi.org/10.1016/j.neuroimage.2010.04.246]
 
 
-set -ex #-nv
+set -e #-nv
 
 subjectDir=/Volumes/Serena/Rest/Subjects/;
 prefix=pipeTests
@@ -103,6 +104,9 @@ logfile=$subjdir/$prefix/preproc-$pipelineSuffix.log
  [ -r $logfile ] && rm $logfile 
 ###########################
 
+
+set -x
+
 # someting new happened, print to screen, log in logfile
 function alert { 
   echo -n "** "
@@ -137,7 +141,7 @@ function _overview {
     innode=${innode%\+orig}
     innode=${innode//./_}
    # edges="$edges  $innode -> $nname \n"
-    edges="$edges $innode -> $globalcount\n"
+    edges="$edges $innode -> :${globalcount}:\n"
     shift;
    done
 
@@ -153,6 +157,9 @@ function _overview {
    fi
 
 
+   action="$@";
+   action=${action// /_}
+   action=${action//./_}
    alert "$num $@" 
 
    [ "$pics" == "yes" ] || return 0
@@ -165,7 +172,7 @@ function _overview {
    fi
 
    echo "// $globalcount" >> $graphFile
-   echo " $globalcount [ shape=diamond, label=\"$@\" ] " >> $graphFile
+   echo " $action [ shape=diamond, label=\"$@\" ] " >> $graphFile
 
    if [ -n "$file" ]; then
       # take a shot if it should be a nifti
@@ -177,8 +184,8 @@ function _overview {
    
    # add description to each edge, and save
    #echo -e "$edges" | sed -e "/^ *\$/d; s/\$/[ label=\"$@\" ]/" >> $graphFile; # labels are now nodes!
-   echo -e "$edges" | sed -e "/^ *\$/d;" >> $graphFile;
-   echo "$globalcount -> $nname" >> $graphFile;
+   echo -e "$edges" | sed -e "/^ *\$/d;s/:${globalcount}:/$action/g" >> $graphFile;
+   echo "$action -> $nname" >> $graphFile;
 
    return 0
 }
@@ -510,10 +517,16 @@ case "$pipelineSuffix" in
       # align mask to structural using nearestneighbor interpolation		
       alignMask # $fullmask -> mask_al{+orig,.nii.gz}
 
-      pwd
+      #pwd
       alignErrts -i ./pb04.$subj.r01.scale+orig -o ./epi_aproc_al
       # aligned and resampeld -> epi_aproc_al_res+orig
       T1alignedEPI=epi_aproc_al_res+orig
+       
+      # free 140MB
+      rm pb04*
+      # free 12Gb!
+      rm epi_aproc_al.{BRIK,HEAD}
+
       #restEPI=$mprageDir/rest_epi_RPI+orig
 
 
@@ -598,9 +611,11 @@ case "$pipelineSuffix" in
    # Pipelines Diverge
    #  bp+ort_noPhyso
    #  bp+3dD_noPhyso 
+   #  bp+3dD-better_noPhyso 
    ###################
 
    [[ $again =~ bp|bandpass || ! -d "$pipelineDir" ]] && fresh="yes" && alert "set fresh at nophysio bp"
+   # should define pipelineoutfile here
    if [ "$fresh" = "yes" ]; then
       # Remove if fresh
       [ -d $pipelineDir ] && rm -r $pipelineDir
@@ -628,16 +643,62 @@ case "$pipelineSuffix" in
        ;;
 
        #### bad
+       # band pass input but not regressors 
+       # then regress, re-introducing bandpassed noise
        bp+3dD*)
 
          alert "using 'bad' bp+3dD pipeline" 
+         bp=${T1alignedEPI%+*}_bp+orig
+         3dBandpass -prefix $bp 0.009 0.08 $nophysioDir/$T1alignedEPI
+         _overview "$bp" -$T1alignedEPI "Bandpass"
+
+         ### 3dD
+         pipelineoutfile=${bp%+*}_3dDerrts+orig
+         3dDeconvolve -input $bp -mask $mask_al_res                                                          \
+                      -fitts fitts.${subj}  -errts ./$pipelineoutfile -bucket stats.${subj}                  \
+                      -polort 3                                                                              \
+                      -fout -tout -x1D X.xmat.1D -xjpeg X.jpg                                                \
+                      -num_stimts 18                                                                         \
+                      -stim_file 1  $nophysioDir/WM.1D                               -stim_label 1  stim01   \
+                      -stim_file 2  $nophysioDir/Vent.1D                             -stim_label 2  stim02   \
+                      -stim_file 3  $nophysioDir/Global.1D                           -stim_label 3  stim03   \
+                      -stim_file 4  $nophysioDir/WM_deriv.1D                         -stim_label 4  stim04   \
+                      -stim_file 5  $nophysioDir/Vent_deriv.1D                       -stim_label 5  stim05   \
+                      -stim_file 6  $nophysioDir/Global_deriv.1D                     -stim_label 6  stim06   \
+                      -stim_file 7  $nophysioDir/Motion_demean.1D'[0]' -stim_base 7  -stim_label 7  roll_01  \
+                      -stim_file 8  $nophysioDir/Motion_demean.1D'[1]' -stim_base 8  -stim_label 8  pitch_01 \
+                      -stim_file 9  $nophysioDir/Motion_demean.1D'[2]' -stim_base 9  -stim_label 9  yaw_01   \
+                      -stim_file 10 $nophysioDir/Motion_demean.1D'[3]' -stim_base 10 -stim_label 10 dS_01    \
+                      -stim_file 11 $nophysioDir/Motion_demean.1D'[4]' -stim_base 11 -stim_label 11 dL_01    \
+                      -stim_file 12 $nophysioDir/Motion_demean.1D'[5]' -stim_base 12 -stim_label 12 dP_01    \
+                      -stim_file 13 $nophysioDir/Motion_deriv.1D'[0]'  -stim_base 13 -stim_label 13 roll_02  \
+                      -stim_file 14 $nophysioDir/Motion_deriv.1D'[1]'  -stim_base 14 -stim_label 14 pitch_02 \
+                      -stim_file 15 $nophysioDir/Motion_deriv.1D'[2]'  -stim_base 15 -stim_label 15 yaw_02   \
+                      -stim_file 16 $nophysioDir/Motion_deriv.1D'[3]'  -stim_base 16 -stim_label 16 dS_02    \
+                      -stim_file 17 $nophysioDir/Motion_deriv.1D'[4]'  -stim_base 17 -stim_label 17 dL_02    \
+                      -stim_file 18 $nophysioDir/Motion_deriv.1D'[5]'  -stim_base 18 -stim_label 18 dP_02    \
+                      -GOFORIT 10                                                               \
+
+          _overview "$pipelineoutfile" "-$bp" -motion_deriv.1D -motion_demean.1D \
+                    -WM.1D -Vent.1D -Global.1D -WM_deriv.1D -Vent_deriv.1D -Global_deriv.1D -$(basename $mask_al_res) "3dDeconvolve"
+
+
+         ### 3dbp
+         ;;
+
+
+       # accidentally made the better 'bandpass last' pipeline
+       # keep around just in case
+       bp+3dD-better*)
+
+         alert "using 'better' bp+3dD pipeline" 
          ### 3dD
          errts=${T1alignedEPI%+*}_3dDerrts+orig
-         3dDeconvolve -input $nophysioDir/$T1alignedEPI  -mask $mask_al_res
-                      -fitts fitts.${subj}  -errts ./$errts -bucket stats.${subj}   \
-                      -polort 3                                                                 \
-                      -fout -tout -x1D X.xmat.1D -xjpeg X.jpg                                   \
-                      -num_stimts 18                                                            \
+         3dDeconvolve -input $nophysioDir/$T1alignedEPI  -mask $mask_al_res                                  \
+                      -fitts fitts.${subj}  -errts ./$errts -bucket stats.${subj}                            \
+                      -polort 3                                                                              \
+                      -fout -tout -x1D X.xmat.1D -xjpeg X.jpg                                                \
+                      -num_stimts 18                                                                         \
                       -stim_file 1  $nophysioDir/WM.1D                               -stim_label 1  stim01   \
                       -stim_file 2  $nophysioDir/Vent.1D                             -stim_label 2  stim02   \
                       -stim_file 3  $nophysioDir/Global.1D                           -stim_label 3  stim03   \

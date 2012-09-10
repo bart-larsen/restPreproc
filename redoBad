@@ -21,7 +21,8 @@ getsettings
 #ls /Volumes/Serena/Rest/physio1D/*_RetroTS.slibase.1D
 
 #ls -d /Volumes/Serena/Rest/Subjects/1*/|xargs -n1 basename
-for subj in 10152 10153 10173 10181; do
+#for subj in 10152 10153 10173 10181; do
+ls /Volumes/Serena/Rest/physio1D/*_RetroTS.slibase.1D|while read s; do s=$(basename $s);subj=${s%_*};
 
    # get settings
    while [ $(jobs -p |wc -l) -ge $maxjobs ]; do 
