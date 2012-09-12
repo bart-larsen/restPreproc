@@ -2,7 +2,7 @@
 
 ######## HELP #############
 # /Volumes/Serena/Rest/rest_scripts/rest_preproc_v6_redoBad -a afni -s 10674 -p
-# Version: single subject 2012-09-04
+# Version: single subject ROI_Corr 2012-09-12
 # Creates: rest_preproc_mni in subjectdir/pipeTest/pipelineSuffix
 # Options
 #   -s subject   required
@@ -11,19 +11,12 @@
 #   -a           run portion again (<mprage,afni,bp>)
 #   -x           take pictures, make a graph
 #   -h           this
-#
-# creates pipelineSuffix (final output files for each) directoires
-#   withPhysio     | -p 
-#   bp+ort_noPhyso | -t ort  -- use simulanious bandpass
-#   bp+3dD_noPhyso | -t 3dD  -- deconvolve then bandpass
-#
-# intermedate (hidden) folders
-#   .inputsAndAlignments ~400MB - $mprageDirSuffix   - input files, epi->T1 mats (flirt), aseg masks (NBT,Vent,WM)
 #   .noPhysio_afniproc   ~600MB - $noPhysioDirSuffix - flirt of afni_proc outputs and regressors (*1D)
 # 
 # FINAL OUT: rest_preproc_mni
 #END ######
 
+#Will   09/12/2012 - include @ROI_Corr_Mat, change overview function
 #Will   09/04/2012 - remove for loop so this script can be used with additional wrapper and job control
 #Will   08/22/2012 - rewrite for three piplines withPhysio, bp+ort_noPhyso, bp+3dD_noPhyso 
 #Will   08/06/2012 - setting pipeline to "bad" bandpass, regress for comparison
@@ -44,23 +37,29 @@
 
 set -e #-nv
 
-subjectDir=/Volumes/Serena/Rest/Subjects/;
+scriptAndArgs="$0 $@"
+version=$(sed -n 's/^# Version://p' $0)
+bb244=/Volumes/Serena/Rest/Subjects/stats/science_regions/bb244+tlrc
+mniBrain=~/standard/fsl_mni152/MNI152_T1_2mm.nii.gz
+subjectDir=/Volumes/Serena/Rest/Subjects/
 prefix=pipeTests
 mprageDirSuffix=.inputsAndAlignments
 noPhysioDirSuffix=.noPhysio_afniproc
 physo=no         # uses phsyo data: no, with|yes 
 pipetype='3dD'   # which pipeline: simul (ort), bp first (3dD)
 pics=no          # pictures and pipeline graph
+dirty=no         # don't save all the output
 
 
 ## OPTIONS
-while getopts 'a:s:t:xph' opt; do
+while getopts 'a:s:t:dxph' opt; do
  case $opt in
   a) again=$OPTARG;;              # <mprage, afni|phys, bp>, what part to start doing again
   p) physo=with;;                 # default no, use physo data?
   s) subj=$OPTARG;;               # ** REQUIRED, what subject to use (just an ID, see subjectDir)
   t) pipetype=$OPTARG;; # <ort|3dD> default: 3dD 
   x) pics=yes;;                   # default no
+  d) dirty=yes;;                  # save outputs, default is no
   *) sed -ne 's/^# //p;/^#END/q' $0; exit;; # help
  esac
 done
@@ -68,13 +67,13 @@ done
 s=$subjectDir/$subj
 [ ! -d $s -o ! -d   /Volumes/Serena/Rest/FS_Subjects_AP/${subj}/mri ] && echo "no directory or FS for subject!" && exit
 
-# pipetype is ort ort 3dD
-if [[  "$pipetype" =~ "ort" ]]; then pipetype="ort"; else pipetype="3dD"; fi
-# physio is with or no
-if [[ "$physo" =~ yes|with ]]; then physo=with; else phsyo=no; fi
 
+# pipetype is ort ort 3dD
 pipelineSuffix="withPhysio"; 
+if [[  "$pipetype" =~ "ort" ]]; then pipetype="ort"; else pipetype="3dD"; fi
+if [[ "$physo" =~ yes|with ]]; then physo=with;pipetype="physio"; else phsyo=no; fi
 [ "$physo" = "no" ] && pipelineSuffix="bp+${pipetype}_noPhysio";
+# physio is with or no
 
 # pipelineSuffix is now one of:
 #  withPhysio
@@ -97,16 +96,18 @@ nophysioDir=$subjdir/$prefix/$noPhysioDirSuffix
 pipelineDir=$subjdir/$prefix/$pipelineSuffix
 
 ## pictures/screenshots and graph
- imgdir=$subjdir/$prefix/.tmpimg_${pipelineSuffix}; graphFile="$imgdir/pipeline.dot"; globalcount=0
+ imgdir=$subjdir/$prefix/.tmpimg;  globalcount=0; graphstage=start;
 
 logfile=$subjdir/$prefix/preproc-$pipelineSuffix.log
- [ ! -d $pipelineDir ] && mkdir -p $pipelineDir
+ #[ ! -d $pipelineDir ] && mkdir -p $pipelineDir
  [ -r $logfile ] && rm $logfile 
 ###########################
 
 
 set -x
-
+function stamp {
+   echo "$(date +%F/%H%M) -- $@ -- $scriptAndargs -- $version" >> stamp
+}
 # someting new happened, print to screen, log in logfile
 function alert { 
   echo -n "** "
@@ -120,7 +121,7 @@ function rm_ext {
 function _overview {
    # usage:  _overview createded_file -inputOne -inputFileTwo "explination of what's going on"
    # only do this if we are told to
-
+   graphFile="$imgdir/pipeline_${graphstage}.dot";
 
    globalcount=$((( $globalcount+ 1))) #let ..++ can return 0 and break things with set -e 
 
@@ -160,7 +161,7 @@ function _overview {
    action="$@";
    action=${action// /_}
    action=${action//./_}
-   alert "$num $@" 
+   alert "$num $@ -> $nname" 
 
    [ "$pics" == "yes" ] || return 0
    ## write to graph
@@ -196,6 +197,7 @@ function alignMask {
   betRPI=$mprageDir/mprage_bet_RPI.nii
 
   3dAFNItoNIFTI $fullmask+orig
+  # use -minsampling 3  ?? -- speed things up
   flirt -v -in $fullmask    -ref $betRPI -init  $mprageDir/epi2brain.txt -applyxfm \
            -paddingsize 0.0 -dof 6 -interp nearestneighbour -o mask_al.nii.gz
 
@@ -258,7 +260,7 @@ function alignErrts {
 
 ################################ START!!!
 
-alert "SUBJ: $subj ($pipetype $again)"
+alert "SUBJ: $subj;  $pipetype $again"
 
 #
 # Step 1. Align mprage and epi, create masks from Freesurfer segementation
@@ -267,10 +269,12 @@ alert "SUBJ: $subj ($pipetype $again)"
 if [ ! -d $mprageDir -o "$fresh" = "yes" ] ; then 
             
    alert "starting mprage ($mprageDir)"
+   graphstage=mprage
             
    # clean up previous outputs, make mprage folder
    [ -d  $mprageDir ] && rm -rf $mprageDir
    mkdir -p $mprageDir
+   stamp "mprage start"
 
    # go to FS parcilations
    cd /Volumes/Serena/Rest/FS_Subjects_AP/${subj}/mri
@@ -371,9 +375,10 @@ if [ ! -d $mprageDir -o "$fresh" = "yes" ] ; then
              -paddingsize 0.0 -dof 6 -o meanfunc2betbrain.nii.gz #-o func2brain_errts.nii.gz
 
    _overview "func_mean_bet" -$restRPI                "time mean and skullstriped functional";
-   _overview "epi2brain.txt" -$betRPI  -func_mean_bet "epi to T1 (matrix)";
+   _overview "epi2brain.txt" -$betRPI  -func_mean_bet "epi to T1 matrix";
    ###################
 
+   stamp "mprage finished"
    
 else
  alert "skipped generating alignments and masks!"
@@ -403,9 +408,10 @@ cd $mprageDir/..
 
 case "$pipelineSuffix" in 
  'withPhysio') 
+   graphstage=withPhysio
    mask_al_res=mask_al_res+orig
 
-   [ ! -d $pipelineDir ] && "$fresh" = "yes"
+   [ ! -d $pipelineDir ] && fresh="yes"
 
    if [ "$fresh" = "yes" ]; then
       [ -r $pipelineDir ] && rm -r $pipelineDir
@@ -483,6 +489,7 @@ case "$pipelineSuffix" in
 
 
  *noPhysio)
+   graphstage=noPhysio
    mask_al_res=$nophysioDir/mask_al_res+orig
     ########################################
     # Pipelines without physiological info #
@@ -517,15 +524,12 @@ case "$pipelineSuffix" in
       # align mask to structural using nearestneighbor interpolation		
       alignMask # $fullmask -> mask_al{+orig,.nii.gz}
 
-      #pwd
-      alignErrts -i ./pb04.$subj.r01.scale+orig -o ./epi_aproc_al
       # aligned and resampeld -> epi_aproc_al_res+orig
+      alignErrts -i ./pb04.$subj.r01.scale+orig -o ./epi_aproc_al
       T1alignedEPI=epi_aproc_al_res+orig
        
-      # free 140MB
-      rm pb04*
-      # free 12Gb!
-      rm epi_aproc_al.{BRIK,HEAD}
+      # free 140MB, 12Gb!
+      [ "$dirty" != "yes" ] && rm pb04* epi_aproc_al.{BRIK,HEAD}
 
       #restEPI=$mprageDir/rest_epi_RPI+orig
 
@@ -542,7 +546,7 @@ case "$pipelineSuffix" in
       #####
 
       for regress in Vent WM_erod NBT_erod aseg_RPI mask_al; do
-         # most things are in mprage folder, mask_al is in preproc
+         # most things are in mprage folder, mask_al is in current directory
          srcdir=$mprageDir
          [[ $regress =~ mask_al ]] && srcdir=./
 
@@ -600,7 +604,7 @@ case "$pipelineSuffix" in
       # remove everything but final output
       #ls *[^D] |grep -v $T1alignedEPI | xargs rm
    else
-     alert "afni proc, alingment, and regressors done for $subj"
+     alert "afni proc, alingment, and regressors already done for $subj"
      T1alignedEPI=epi_aproc_al_res+orig
    fi
 
@@ -622,11 +626,15 @@ case "$pipelineSuffix" in
 
       # make dir and go there
       mkdir $pipelineDir && cd $pipelineDir
+      stamp "start pipeline"
+
+      alert "made $pipelineDir"
 
       ## do what the pipeline says to
       case  "$pipelineSuffix" in 
        #### good?
        bp+ort*) 
+         graphstage=ort
 
          alert "using 'good' bp+ort pipeline" 
          ### 3dbandpass
@@ -645,15 +653,16 @@ case "$pipelineSuffix" in
        #### bad
        # band pass input but not regressors 
        # then regress, re-introducing bandpassed noise
-       bp+3dD*)
-
+       bp+3dD_*)
+         graphstage=3dD
          alert "using 'bad' bp+3dD pipeline" 
-         bp=${T1alignedEPI%+*}_bp+orig
+
+         bp=./${T1alignedEPI%+*}_bp+orig #epi_aproc_al_res+orig -> epi_aproc_al_res_bp+orig
          3dBandpass -prefix $bp 0.009 0.08 $nophysioDir/$T1alignedEPI
          _overview "$bp" -$T1alignedEPI "Bandpass"
 
          ### 3dD
-         pipelineoutfile=${bp%+*}_3dDerrts+orig
+         pipelineoutfile=${bp%+*}_3dDerrts+orig # epi_aproc_al_res_bp+orig -> epi_aproc_al_res_bp_3dDerrts+orig
          3dDeconvolve -input $bp -mask $mask_al_res                                                          \
                       -fitts fitts.${subj}  -errts ./$pipelineoutfile -bucket stats.${subj}                  \
                       -polort 3                                                                              \
@@ -689,7 +698,9 @@ case "$pipelineSuffix" in
 
        # accidentally made the better 'bandpass last' pipeline
        # keep around just in case
-       bp+3dD-better*)
+       bp+3dD-better_*)
+
+         graphstage=better
 
          alert "using 'better' bp+3dD pipeline" 
          ### 3dD
@@ -741,10 +752,11 @@ esac
 
 
 ### Wrap up for all pipelines
-[ "$fresh" != "yes" ] && echo "Didn't do anything,considered skipped" && exit 1
-[ -z "$pipelineoutfile" ]  && echo "pipeline outfile is empty! Why?!" && exit 1
-[ -z "$mask_al_res" ]  && echo "mask_al_res  is empty! Why?!" && exit 1
-# mask_al_res 
+[ "$fresh" != "yes" ]      && echo "Didn't do anything,considered skipped" && exit 1
+[ -z "$pipelineoutfile" ]  && echo "pipeline outfile is empty! Why?!"      && exit 1
+[ -z "$mask_al_res" ]      && echo "mask_al_res  is empty! Why?!"          && exit 1
+
+# maybe don't blur here
 3dBlurInMask -input $pipelineoutfile -FWHM 5 -mask $mask_al_res -preserve -prefix rest_preproc_native.nii.gz        
 _overview rest_preproc_native.nii.gz   -$pipelineoutfile -$mask_al_res "Blur"
 ### OUTPUT: rest_preproc_native.nii.gz # rest_preproc_native.nii.gz is the preprocess file in native space
@@ -752,39 +764,39 @@ _overview rest_preproc_native.nii.gz   -$pipelineoutfile -$mask_al_res "Blur"
 ### FINAL MNI ALIGNED OUTPUT: rest_preproc_mni
 # use output from rest_preprocessMprage
 alert "final alignment" 
-applywarp -i rest_preproc_native -r ~/standard/fsl_mni152/MNI152_T1_2mm.nii.gz -o rest_preproc_mni -w $mprageDir/mprage_RPI_warpcoef	
+applywarp -i rest_preproc_native -r $mniBrain -o rest_preproc_mni -w $mprageDir/mprage_RPI_warpcoef	
 
 _overview rest_preproc_mni -MNI152_T1_2mm -rest_preproc_native  -mprage_RPI_warpcoef "warp"
 
-[ "$pics" == "yes" ] && echo "}" >> $graphFile
-
-    
-   #else
-   #  alert "$subj: already compelte"
-    #fi
-#done
-
 # remove everything that's not the final (_native and _mni)
-find ./ -type f \! -name rest_preproc_\* | xargs rm
+[ "$dirty" != "yes" ] && find ./ -type f \! -name rest_preproc_\* | xargs rm
+
+stamp "finished pipeline"
+##### Collect corrilation between 244 ROIs
+
+alert "ROI stats" 
+
+# check we have a fca directory, and go there
+fcaDir=../fca/
+[ -d $fcaDir ] || mkdir $fcaDir
+cd $fcaDir
+
+# save the corr as the pipeline but with _ instead of +
+@ROI_Corr_Mat -zval -ts rest_preproc_mni.nii.gz -roi $bb244 -prefix ${pipelineSuffix//+/_}
+[ "$dirty" != "yes" ] && rm *{BRIK,HEAD}
+
+
+
+### save last bit of graph file
+echo "}" >> $graphFile
+
+
 
 exit 
-    #
-       #
-       # preprocess with AFNI's automatic preprocess script
-       # Regress out physio (if we say so), WM and ventrical noise, ignore motion?
-       # capture errts (noise, residulas from 3dDeconvolve)
-       #
-       # afni_proc default blocks: tshift volreg blur mask scale regress
-       # -regress_motion_per_run vs default regress motion parameters catenated across runs
-       #    more motion-correlated variance can be accounted for at the cost of the extra degrees of freedom (6*(nruns-1))
-       # ricor_regress_method {per-run, across-runs}
-       # mask_apply {epi,anat,group,extents}, to apply in regression
-       # preprocess without physiodata
-       #
 
-    # get a shot of the final alignment
-    #afni -com "SET_UNDERLAY rest_preproc_native.nii.gz" -com "SET_OVERLAY $pipelineDir/aseg_RPI_res+orig" -com "SET_PBAR_ALL A.+99 1.0 ROI_i128" -com "SET_XHAIRS OFF" -com "OPEN_WINDOW coronalimage opacity=7" -com "OPEN_WINDOW axialimage opacity=7" -com "OPEN_WINDOW sagittalimage opacity=7"  -yesplugouts -com "SAVE_PNG sagittalimage sag.png" -com "SAVE_PNG axialimage ax.png" -com "SAVE_PNG coronalimage cor.png" -com "QUIT"
-    #convert \( +append ax.png cor.png sag.png \) -scale 200% -fill yellow -annotate 1 $subj ${subj}_asegONepi.png
-    #rm {ax,cor,sag}.png
+# get a shot of the final alignment
+#afni -com "SET_UNDERLAY rest_preproc_native.nii.gz" -com "SET_OVERLAY $pipelineDir/aseg_RPI_res+orig" -com "SET_PBAR_ALL A.+99 1.0 ROI_i128" -com "SET_XHAIRS OFF" -com "OPEN_WINDOW coronalimage opacity=7" -com "OPEN_WINDOW axialimage opacity=7" -com "OPEN_WINDOW sagittalimage opacity=7"  -yesplugouts -com "SAVE_PNG sagittalimage sag.png" -com "SAVE_PNG axialimage ax.png" -com "SAVE_PNG coronalimage cor.png" -com "QUIT"
+#convert \( +append ax.png cor.png sag.png \) -scale 200% -fill yellow -annotate 1 $subj ${subj}_asegONepi.png
+#rm {ax,cor,sag}.png
 
 
