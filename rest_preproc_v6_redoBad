@@ -49,6 +49,7 @@ physo=no         # uses phsyo data: no, with|yes
 pipetype='3dD'   # which pipeline: simul (ort), bp first (3dD)
 pics=no          # pictures and pipeline graph
 dirty=no         # don't save all the output
+TR=1.5           # could grab with 3dinfo or fslval pixdim4
 
 
 ## OPTIONS
@@ -249,7 +250,7 @@ function alignErrts {
            -paddingsize 0.0 -dof 6 -o $outname 	
 
   # FSL strips away the TR. Bring it back!	
-  3drefit -TR 1.500 $outname
+  3drefit -TR $TR $outname
 
 
   # convert aligned EPI to AFNI
@@ -490,7 +491,7 @@ case "$pipelineSuffix" in
 
       ### 3dbp
       pipelineoutfile=${anaticoreout%+*}_bp.nii.gz # epi_res_al_physio+orig -> epi_res_al_physio_bp.nii.gz
-      3dBandpass -prefix $pipelineoutfile  0.009 0.08 $anaticoreout
+      3dBandpass -tr $TR -prefix $pipelineoutfile  0.009 0.08 $anaticoreout
       _overview "$pipelineoutfile" -$anaticoreout "bandpass"
    else
     alert "Skipping withPhsyio"
@@ -653,8 +654,10 @@ case "$pipelineSuffix" in
            alert "using 'good' bp+ort pipeline" 
            ### 3dbandpass
            pipelineoutfile=epi_res_bp+orig 
-           3dBandpass -prefix ./$pipelineoutfile 0.009 0.08 $nophysioDir/$T1alignedEPI \
-            $(for r in {WM,Vent,Global}{,_deriv}.1D motion_{demean,deriv}; do echo -n "-ort $nophysioDir/$r "; done)
+           # MUST HAVE ARGUMENTS in correct order {command [opts] fbot ftop dataset}
+           3dBandpass -tr $TR -prefix ./$pipelineoutfile \
+            $(for r in {WM,Vent,Global}{,_deriv}.1D motion_{demean,deriv}; do echo -n "-ort $nophysioDir/$r "; done) \
+            0.009 0.08 $nophysioDir/$T1alignedEPI 
            #-ort WM.1D -ort WM_deriv.1D -ort Vent.1D -ort Vent_deriv.1D -ort Global.1D 
            #-ort Global_deriv.1D -ort motion_demean -ort motion_deriv 
            #TODO: include global?
@@ -672,7 +675,7 @@ case "$pipelineSuffix" in
            alert "using 'bad' bp+3dD pipeline" 
 
            bp=./${T1alignedEPI%+*}_bp+orig #epi_aproc_al_res+orig -> epi_aproc_al_res_bp+orig
-           3dBandpass -prefix $bp 0.009 0.08 $nophysioDir/$T1alignedEPI
+           3dBandpass -tr $TR -prefix $bp 0.009 0.08 $nophysioDir/$T1alignedEPI
            _overview "$bp" -$T1alignedEPI "Bandpass"
 
            ### 3dD
@@ -750,7 +753,7 @@ case "$pipelineSuffix" in
 
            ### 3dbp
            pipelineoutfile=${errts%+*}_bp+orig 
-           3dBandpass -prefix $pipelineoutfile 0.009 0.08 $errts
+           3dBandpass -tr $TR -prefix $pipelineoutfile 0.009 0.08 $errts
            _overview "$pipelineoutfile" -$errts "Bandpass"
            ;;
 
