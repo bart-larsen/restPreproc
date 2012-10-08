@@ -491,7 +491,8 @@ case "$pipelineSuffix" in
 
       ### 3dbp
       pipelineoutfile=${anaticoreout%+*}_bp.nii.gz # epi_res_al_physio+orig -> epi_res_al_physio_bp.nii.gz
-      3dBandpass -tr $TR -prefix $pipelineoutfile  0.009 0.08 $anaticoreout
+      # -tr $TR  is not an option for 3db
+      3dBandpass -prefix $pipelineoutfile  0.009 0.08 $anaticoreout
       _overview "$pipelineoutfile" -$anaticoreout "bandpass"
    else
     alert "Skipping withPhsyio"
@@ -655,8 +656,9 @@ case "$pipelineSuffix" in
            ### 3dbandpass
            pipelineoutfile=epi_res_bp+orig 
            # MUST HAVE ARGUMENTS in correct order {command [opts] fbot ftop dataset}
-           3dBandpass -tr $TR -prefix ./$pipelineoutfile \
-            $(for r in {WM,Vent,Global}{,_deriv}.1D motion_{demean,deriv}; do echo -n "-ort $nophysioDir/$r "; done) \
+           # -tr $TR is not an option for 3db
+           3dBandpass -prefix ./$pipelineoutfile \
+            $(for r in {WM,Vent,Global}{,_deriv}.1D motion_{demean,deriv}.1D; do echo -n "-ort $nophysioDir/$r "; done) \
             0.009 0.08 $nophysioDir/$T1alignedEPI 
            #-ort WM.1D -ort WM_deriv.1D -ort Vent.1D -ort Vent_deriv.1D -ort Global.1D 
            #-ort Global_deriv.1D -ort motion_demean -ort motion_deriv 
@@ -675,7 +677,8 @@ case "$pipelineSuffix" in
            alert "using 'bad' bp+3dD pipeline" 
 
            bp=./${T1alignedEPI%+*}_bp+orig #epi_aproc_al_res+orig -> epi_aproc_al_res_bp+orig
-           3dBandpass -tr $TR -prefix $bp 0.009 0.08 $nophysioDir/$T1alignedEPI
+           # -tr $TR not an option for 3db
+           3dBandpass -prefix $bp 0.009 0.08 $nophysioDir/$T1alignedEPI
            _overview "$bp" -$T1alignedEPI "Bandpass"
 
            ### 3dD
@@ -753,7 +756,8 @@ case "$pipelineSuffix" in
 
            ### 3dbp
            pipelineoutfile=${errts%+*}_bp+orig 
-           3dBandpass -tr $TR -prefix $pipelineoutfile 0.009 0.08 $errts
+           # -tr $TR not an option for 3db
+           3dBandpass -prefix $pipelineoutfile 0.009 0.08 $errts
            _overview "$pipelineoutfile" -$errts "Bandpass"
            ;;
 
