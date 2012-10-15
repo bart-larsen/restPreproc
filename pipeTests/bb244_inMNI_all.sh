@@ -1,4 +1,6 @@
-#!/usr/bin/env bash -e
+#!/usr/bin/env bash
+
+set -xe
 
 #########
 # 
@@ -12,12 +14,13 @@
 subjdir="/Volumes/Serena/Rest/Subjects"
 bbDir="/Volumes/Serena/Rest/Subjects/stats/science_regions"
 subjexample="$subjdir/10153/pipeTests/bp+ort_noPhysio/rest_preproc_mni.nii.gz"
-if [ ! -r $bbDir/bb244MNI_res1.nii.gz ]; then
+bb244=$bbDir/bb244MNI_LPI_2mm.nii.gz
+if [ ! -r $bb244 ]; then
    ### original bb244 might be bad?
    #3dcopy -overwrite $bbDir/bb244+tlrc $bbDir/bb244MNI.nii.gz
    #3dresample -overwrite -inset $bbDir/bb244MNI.nii.gz -prefix $bbDir/bb244MNI_res.nii.gz -master /Volumes/Serena/Rest/Subjects/10153/pipeTests/bp+ort_noPhysio/rest_preproc_mni.nii.gz
-  3dUndump -prefix $bbDir/bb244MNI_res1.nii.gz  -master $subjexample \
-           -orient LPI -xyz $bbDir/bb244_coordinate -srad 5
+  3dUndump -srad 5 -prefix $bb244  -master $subjexample \
+           -orient LPI -xyz $bbDir/bb244_coordinate
 fi
 
 
@@ -27,7 +30,6 @@ for file in $subjdir/*/pipeTests/*/rest_preproc_mni.nii.gz; do
    cd $(dirname $file)
    #[ -r ROIStats_mni.1D ] && echo "completed" && continue
    # use nzmean instead of mean?
-   opts='-nzmean -nomeanout'
-   3dROIstats -nzmean -nomeanout -numROI 264 -quiet -mask $bbDir/bb244MNI_res1.nii.gz rest_preproc_mni.nii.gz  > ROIStats_mni.1D
+   3dROIstats -nzmean -nomeanout -numROI 264 -quiet -mask $bb244 rest_preproc_mni.nii.gz  > ROIStats_mni.1D
 done
 
