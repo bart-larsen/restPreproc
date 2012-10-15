@@ -2,13 +2,14 @@ library(ggplot2)
 library(reshape2)
 
 pipes <- c('bp_ort_noPhysio','bp_3dD_noPhysio','withPhysio')
-dirs  <- Sys.glob('/Volumes/Serena/Rest/Subjects/1*/pipeTests/fca/')
+dirs  <- Sys.glob('/Volumes/Serena/Rest/Subjects/1*/pipeTests/fca/') # change subjs if this is changed!
+subjs <- substr(dirs,31,35)
 
 numROI   <- 244
 numSubjs <- length(dirs)
 numPipes <- length(pipes)
 
-# a will be 4d array
+# 'a' will be 4d array
 #  roiXroiXsubjXpipe
 
 a <- array(0, c(numROI,numROI,numSubjs,numPipes) )
@@ -56,13 +57,15 @@ ggheat <- function(m) {
    return (ggplot(dm,aes(variable,roi))+geom_tile(aes(fill=value)))
 }
 
-m1Mean<-apply(a[,,,1],c(1,2),mean,na.rm=TRUE)
-m2Mean<-apply(a[,,,2],c(1,2),mean,na.rm=TRUE)
-m1Mean[lower.tri(m1Mean)]<-NA
-m2Mean[lower.tri(m2Mean)]<-NA
+simMean<-apply(a[,,,1],c(1,2),mean,na.rm=TRUE)
+bpregMean<-apply(a[,,,2],c(1,2),mean,na.rm=TRUE)
+simMean[  lower.tri(simMean)  ] <- NA
+bpregMean[lower.tri(bpregMean)] <- NA
+diag(simMean)   <- NA
+diag(bpregMean) <- NA
 
-m1      <- ggheat(m1Mean)+opts(title=pipes[1])
-m2      <- ggheat(m2Mean)+opts(title=pipes[2])
+m1      <- ggheat(simMean)+opts(title=pipes[1])
+m2      <- ggheat(bpregMean)+opts(title=pipes[2])
 ttested <- ggheat(m1vm2)+opts(title="bandpass sim vs first")
 
 library(gridExtra)
