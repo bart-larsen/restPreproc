@@ -16,6 +16,7 @@
 # FINAL OUT: rest_preproc_mni
 #END ######
 
+#Will   10/15/2012 - using bad bb244 in @ROI_Corr_Mat? Bigger issue for ROIStats_mni.1D (not here)
 #Will   09/12/2012 - include @ROI_Corr_Mat, change overview function
 #Will   09/04/2012 - remove for loop so this script can be used with additional wrapper and job control
 #Will   08/22/2012 - rewrite for three piplines withPhysio, bp+ort_noPhyso, bp+3dD_noPhyso 
@@ -40,6 +41,7 @@ set -e #-nv
 scriptAndArgs="$0 $@"
 version=$(sed -n 's/^# Version://p' $0)
 bb244=/Volumes/Serena/Rest/Subjects/stats/science_regions/bb244+tlrc
+bb244="/Volumes/Serena/Rest/rest_scripts/pipeTests/bb244/bb244_RPI.nii.gz"
 mniBrain=~/standard/fsl_mni152/MNI152_T1_2mm.nii.gz
 subjectDir=/Volumes/Serena/Rest/Subjects/
 prefix=pipeTests
