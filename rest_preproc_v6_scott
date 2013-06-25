@@ -2,11 +2,18 @@
 set -ex
 
 #
-# reviewed 2013-06-14
 #
 # USAGE: rest_preproc_v6_scott 10152
 #
 #
+#2013-06-14
+# add version suffix
+# add preprocess.info to mprage and mri dir 
+# move corrected py to /opt/ni_tools/afni/align_epi_anat_lncdfix.py 
+# get scriptdir for rest_preprocessMprage
+#2013-06-14
+# abstract direcotires to physioDir, subjRootDir, and FSDir
+# remove for loop, provided subject as first argument
 
 #12-08-2011
 #preprocess rest functinal
@@ -26,7 +33,9 @@ s=$1
 # if it wasn't provided, just use 1-152
 [ -z "$s" ] && s=10152 && echo "using 10152 by default!" 
 
-#cwd=$(pwd)
+# find the first date in this script, call that the script version
+scriptver=$(perl -lne 'print&&exit if /#\d{4}/' $0)  
+scriptdir=$(cd $(dirname $0);pwd)              # absolute path to this script, used to reference rest_preprocessMprage
 subjRootDir="/Volumes/Phillips/Rest/Subjects"  # expect after this dir there is subj/rest/all.nii.gz
 physioDir="/Volumes/Phillips/Rest/physio1D"    # if this doesn't exist, it won't be used
 FSDir="/Volumes/Phillips/Rest/FS_Subjects"     # what dir has free surfer aseg.mgz
@@ -49,7 +58,8 @@ cd ${subjRootDir}/${s}/
 # clean up previous outputs, make mprage folder
 [ -r mprage$mprageversion ] && rm -rf mprage$mprageversion
 mkdir mprage$mprageversion
-
+date > mprage$mprageversion/processing.info
+echo "script: $0; $scriptdir; $scriptver">> mprage$mprageversion/processing.info
 cd $FSDir/${s}/mri
 
 # move freesurfer segmentation files to mrpage folder
@@ -160,11 +170,13 @@ rm mprage_RPI.nii.gz
 3dAFNItoNIFTI	-prefix mprage_bet.nii.gz brain_RPI_al+orig
 
 # run michael's normalization script, 
-./rest_preprocessMprage -r MNI_2mm -n mprage.nii.gz -d n
+$scriptdir/rest_preprocessMprage -r MNI_2mm -n mprage.nii.gz -d n
 
 # clean up previous outputs, make tlrc folder
 [ -r ${subjRootDir}/${s}/mni$preprocversion/ ] && rm -rf ${subjRootDir}/${s}/mni$preprocversion/
 mkdir ${subjRootDir}/${s}/mni$preprocversion/
+date > ${subjRootDir}/${s}/mni$preprocversion/processing.info
+echo "script: $0; $scriptdir; $scriptver">>  ${subjRootDir}/${s}/mni$preprocversion/processing.info
 
 # move normalized stuff and GMmask to tlrc
 cp mprage* GM*res*al* brain* aseg* *.1D ${subjRootDir}/${s}/mni$preprocversion/
