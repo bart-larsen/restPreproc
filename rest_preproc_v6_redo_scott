@@ -9,7 +9,7 @@ set -ex
 #     $FSDir/10152/mri/aseg.mgz brainmask.mgz T1.mgz
 #     ${subjRootDir}/10152/rest/all.nii.gz
 #
-#  use REDOMPRAGE to redo mprage
+#  **** use REDO to redo  ****
 #
 # FINAL OUTPUT:
 #  rest_preproc_native
@@ -17,11 +17,8 @@ set -ex
 #
 #2013-06-24
 # add version suffix
-# add preprocess.info to mprage and mri dir 
-# move corrected py to /opt/ni_tools/afni/align_epi_anat_lncdfix.py 
-# get scriptdir for rest_preprocessMprage
-# add catch to skip mprage if already done
-# dfile.rall.1D is now saved as dfile_rall.1D by afni, make change
+# add preprocess.info 
+# get scriptdir for rest_preprocessMprage absolute director
 
 #06/12/2012 Aarthi
 # redoing preprocess to make the alignment better. using FLIRT to align EPI to mprage. 
@@ -40,15 +37,15 @@ set -ex
 #the first argument to the script is expected to be a subject ID
 s=$1
 # if it wasn't provided, just use 1-152
-[ -z "$s" ] && s=10152 && echo "using 10152 by default!" 
+[ -z "$s" ] && s=10845 && echo "using 10152 by default!" 
 
 # find the first date in this script, call that the script version
 scriptver=$(perl -lne 'print&&exit if /#\d{4}/' $0)  
 scriptdir=$(cd $(dirname $0);pwd)              # absolute path to this script, used to reference rest_preprocessMprage
+gitver=$(cd $(dirname $0);git show|head -n1)   # what commit are we on
 subjRootDir="/Volumes/Phillips/Rest/Subjects"  # expect after this dir there is subj/rest/all.nii.gz
 physioDir="/Volumes/Phillips/Rest/physio1D"    # if this doesn't exist, it won't be used
-FSDir="/Volumes/Phillips/Rest/FS_Subjects"     # what dir has free surfer aseg.mgz
-mprageversion="_v6Scott"                       # directory suffix for different versions of mprage
+FSDir="/Volumes/Phillips/Rest/FS_Subjects_AP/"     # what dir has free surfer aseg.mgz
 preprocversion="_Scott"                        # directory suffix for different versions of processing
 
 for file in $FSDir/${s}/mri/aseg.mgz ${subjRootDir}/${s}/rest/all.nii.gz; do
@@ -58,95 +55,74 @@ done
 
 ### Structural stuff
 
-if [ ! -d ${subjRootDir}/${s}/mni$preprocversion/  -o -n "$REDOMPRAGE" ]; then
 
 
-   #
-   # Step 1. Create nuisance regressors from Freesurfer segementation
-   #
-   
-   cd ${subjRootDir}/${s}/
-   
-   # clean up previous outputs, make mprage folder
-   [ -r mni$preprocversion ] && rm -rf mni$preprocversion
-   mkdir mni$preprocversion
-   date > mni$preprocversion/processing.info
-   echo "script: $0; $scriptdir; $scriptver">> mni$preprocversion/processing.info
-   cd $FSDir/${s}/mri
+#
+# Step 1. Create nuisance regressors from Freesurfer segementation
+#
 
-   # move freesurfer segmentation files to mrpage folder
-   mri_convert brainmask.mgz mprage_bet.nii.gz
-   
-   mri_convert T1.mgz mprage.nii.gz
-   
-   mv mprage_bet.nii.gz ${subjRootDir}/${s}/mni$preprocversion/
-   
-   mv mprage.nii.gz ${subjRootDir}/${s}/mni$preprocversion/
-   
-   mri_convert aseg.mgz aseg.nii.gz
-   
-   mv aseg.nii.gz ${subjRootDir}/${s}/mni$preprocversion/
-   
-   cd ${subjRootDir}/${s}/mni$preprocversion/
-   
-   #CANNOT DEOBLIQUE BECAUSE it changes number of slices which messes up the physio stuff. 
-   #3dWarp -deoblique -prefix rest_epi_RPI_do rest_epi_RPI+orig
-   
-   
-   3dcopy ${subjRootDir}/${s}/rest/all.nii.gz ./rest_epi
-   
-   # switch to RPI orientation for both func and anat files
-   3dresample -orient RPI -prefix rest_epi_RPI -inset rest_epi+orig
-   
-   3dcopy mprage_bet.nii.gz mprage_bet
-   3dresample -orient RPI -prefix mprage_bet_RPI -inset mprage_bet+orig
-   
-   3dcopy mprage.nii.gz mprage
-   3dresample -orient RPI -prefix mprage_RPI -inset mprage+orig
-   
-   3dcopy aseg.nii.gz aseg
-   3dresample -orient RPI -prefix aseg_RPI -inset aseg+orig
-   
-   # create WM, Ventricals, Non-brain-tissue(NBT) and GM masks
-   
-   3dcalc -a aseg_RPI+orig -expr 'amongst(a,2,7,41,46,77,78,79)' -prefix WM
-   3dcalc -a aseg_RPI+orig -expr 'amongst(a,4,5,14,15,43,44)' -prefix Vent
-   3dcalc -a aseg_RPI+orig -expr 'amongst(a,3,8,10,11,12,13,17,18,26,28)' -prefix GM_L
-   3dcalc -a aseg_RPI+orig -expr 'amongst(a,42,47,49,50,51,52,53,54,58,60)' -prefix GM_R
-   3dcalc -a aseg_RPI+orig -expr 'amongst(a,16)' -prefix BS
-   3dcalc -a mprage_bet_RPI+orig -b WM+orig -c Vent+orig -d GM_L+orig -e GM_R+orig -f BS+orig -expr '(a/a)-(b+c+d+e+f)' -prefix NBT
-   
-   # erode masks by 1 voxel to reduce partial volume effect 
-   3dcalc -a WM+orig -b a+i -c a-i -d a+j -e a-j -f a+k -g a-k -expr 'a*(1-amongst(0,b,c,d,e,f,g))' -prefix WM_erod
-   
-   # after some test dont erode Ventrical masks, as no voxels will survive
-   #3dcalc -a Vent+orig -b a+i -c a-i -d a+j -e a-j -f a+k -g a-k -expr 'a*(1-amongst(0,b,c,d,e,f,g))' -prefix Vent_erod
-   
-   3dcalc -a NBT+orig -b a+i -c a-i -d a+j -e a-j -f a+k -g a-k -expr 'a*(1-amongst(0,b,c,d,e,f,g))' -prefix NBT_erod
-   
-   #AFNI SUCKS FOR ALIGNMENT DONT USE
-   #align_epi_anat.py -anat brain_bet_RPI+orig -epi rest_epi_RPI_do+orig -epi_strip None -epi_base 5 -anat2epi -anat_has_skull no -tshift off -child_anat mprage_RPI+orig aseg_RPI+orig GM_L_res+orig GM_R_res+orig brain_bet_RPI_res+orig WM_res_erod+orig Vent_res+orig NBT_res_erod+orig
-   
-   #align masks to functional - NO NEED SINCE I FOLLOWED MICHAEL'S ADVICE TO ALIGN FUNCTIONAL TO STRUCTURAL
-   #3dAFNItoNIFTI WM_erod+orig
-   #flirt -in WM_erod.nii -ref rest_epi_RPI.nii.gz -init brain2epi.txt -applyxfm -o WM_erod_al.nii.gz
-   
-   #3dAFNItoNIFTI Vent+orig
-   #flirt -in Vent.nii -ref rest_epi_RPI.nii.gz -init brain2epi.txt -applyxfm -o Vent_al.nii.gz
-   
-   #3dAFNItoNIFTI GM_R+orig
-   #flirt -in GM_R.nii -ref rest_epi_RPI.nii.gz -init brain2epi.txt -applyxfm -o GM_R_al.nii.gz
-   
-   #3dAFNItoNIFTI GM_L+orig
-   #flirt -in GM_L.nii -ref rest_epi_RPI.nii.gz -init brain2epi.txt -applyxfm -o GM_L_al.nii.gz
-   
-   #3dAFNItoNIFTI NBT_erod+orig
-   #flirt -in NBT_erod.nii -ref rest_epi_RPI.nii.gz -init brain2epi.txt -applyxfm -o NBT_erod_al.nii.gz
-   
-   #3dAFNItoNIFTI aseg_RPI+orig
-   #flirt -in aseg_RPI.nii -ref rest_epi_RPI.nii.gz -init brain2epi.txt -applyxfm -o aseg_al.nii.gz
+cd ${subjRootDir}/${s}/
 
-fi
+#### clean up previous outputs, make mprage folder
+# remove if we want to redo
+[ -n "$REDO" -a -r mni$preprocversion ] && rm -r mni$preprocversion
+[ -r mni$preprocversion ] && echo "${subjRootDir}/${s}/mni$preprocversion already exists!\nuse: REDO=1 $0 $@ " && exit 1
+
+mkdir mni$preprocversion
+date > mni$preprocversion/processing.info
+echo -e "script version:$gitver\n$scriptver\n$0 $@;\n#located in $scriptdir">> mni$preprocversion/processing.info
+cd $FSDir/${s}/mri
+
+# move freesurfer segmentation files to mrpage folder
+mri_convert brainmask.mgz mprage_bet.nii.gz
+
+mri_convert T1.mgz mprage.nii.gz
+
+mv mprage_bet.nii.gz ${subjRootDir}/${s}/mni$preprocversion/
+
+mv mprage.nii.gz ${subjRootDir}/${s}/mni$preprocversion/
+
+mri_convert aseg.mgz aseg.nii.gz
+
+mv aseg.nii.gz ${subjRootDir}/${s}/mni$preprocversion/
+
+cd ${subjRootDir}/${s}/mni$preprocversion/
+
+#CANNOT DEOBLIQUE BECAUSE it changes number of slices which messes up the physio stuff. 
+#3dWarp -deoblique -prefix rest_epi_RPI_do rest_epi_RPI+orig
+
+
+3dcopy ${subjRootDir}/${s}/rest/all.nii.gz ./rest_epi
+
+# switch to RPI orientation for both func and anat files
+3dresample -orient RPI -prefix rest_epi_RPI -inset rest_epi+orig
+
+3dcopy mprage_bet.nii.gz mprage_bet
+3dresample -orient RPI -prefix mprage_bet_RPI -inset mprage_bet+orig
+
+3dcopy mprage.nii.gz mprage
+3dresample -orient RPI -prefix mprage_RPI -inset mprage+orig
+
+3dcopy aseg.nii.gz aseg
+3dresample -orient RPI -prefix aseg_RPI -inset aseg+orig
+
+# create WM, Ventricals, Non-brain-tissue(NBT) and GM masks
+
+3dcalc -a aseg_RPI+orig -expr 'amongst(a,2,7,41,46,77,78,79)' -prefix WM
+3dcalc -a aseg_RPI+orig -expr 'amongst(a,4,5,14,15,43,44)' -prefix Vent
+3dcalc -a aseg_RPI+orig -expr 'amongst(a,3,8,10,11,12,13,17,18,26,28)' -prefix GM_L
+3dcalc -a aseg_RPI+orig -expr 'amongst(a,42,47,49,50,51,52,53,54,58,60)' -prefix GM_R
+3dcalc -a aseg_RPI+orig -expr 'amongst(a,16)' -prefix BS
+3dcalc -a mprage_bet_RPI+orig -b WM+orig -c Vent+orig -d GM_L+orig -e GM_R+orig -f BS+orig -expr '(a/a)-(b+c+d+e+f)' -prefix NBT
+
+# erode masks by 1 voxel to reduce partial volume effect 
+3dcalc -a WM+orig -b a+i -c a-i -d a+j -e a-j -f a+k -g a-k -expr 'a*(1-amongst(0,b,c,d,e,f,g))' -prefix WM_erod
+
+# after some test dont erode Ventrical masks, as no voxels will survive
+#3dcalc -a Vent+orig -b a+i -c a-i -d a+j -e a-j -f a+k -g a-k -expr 'a*(1-amongst(0,b,c,d,e,f,g))' -prefix Vent_erod
+
+3dcalc -a NBT+orig -b a+i -c a-i -d a+j -e a-j -f a+k -g a-k -expr 'a*(1-amongst(0,b,c,d,e,f,g))' -prefix NBT_erod
+
 
 #
 # Step 2. Preprocessing functional rest data
@@ -154,13 +130,15 @@ fi
 #
 # preprocess with physio dat,run AFNI's automatic preprocess script. Regress out physio, WM and ventrical noise	
 #
-if [ -f /Volumes/Phillips/Rest/physio1D/${s}_RetroTS.slibase.1D ]; then
-afni_proc.py -bash -execute -out_dir afni_proc -scr_overwrite -subj_id ${s} -dsets rest_epi_RPI+orig -blocks tshift volreg mask scale regress -do_block despike ricor -ricor_regs  /Volumes/Phillips/Rest/physio1D/${s}_RetroTS.slibase.1D -ricor_regress_method 'per-run' -tshift_opts_ts -tpattern seq+z -mask_apply epi -regress_errts_prefix errts -regress_no_motion -regress_opts_3dD -GOFORIT 10
+if [ -f $physioDir/${s}_RetroTS.slibase.1D ]; then
+echo "USING PHYSIO!!" | tee physio.txt
+afni_proc.py -bash -execute -out_dir afni_proc -scr_overwrite -subj_id ${s} -dsets rest_epi_RPI+orig -blocks tshift volreg mask scale regress -do_block despike ricor -ricor_regs  $physioDir/${s}_RetroTS.slibase.1D -ricor_regress_method 'per-run' -tshift_opts_ts -tpattern seq+z -mask_apply epi -regress_errts_prefix errts -regress_no_motion -regress_opts_3dD -GOFORIT 10
 
 #
 # preprocess without physiodata
 #
 else
+echo "NOT NOT NOT USING PHYSIO!!" | tee nophysio.txt
 afni_proc.py -bash -execute -out_dir afni_proc -scr_overwrite -subj_id ${s} -dsets rest_epi_RPI+orig -blocks tshift volreg mask scale regress -do_block despike -regress_motion_per_run -tshift_opts_ts -tpattern seq+z -mask_apply epi -regress_errts_prefix errts -regress_no_motion -regress_opts_3dD -GOFORIT 10	
 
 fi
@@ -252,7 +230,7 @@ rm mprage_bet.nii.gz
 3dAFNItoNIFTI -prefix mprage_bet.nii.gz mprage_bet_RPI+orig	
 
 #run michael's normalization script 	
-source ../../../rest_scripts/rest_preprocessMprage -r MNI_2mm -n mprage.nii.gz -d n
+$scriptdir/rest_preprocessMprage -r MNI_2mm -n mprage.nii.gz -d n
 
 
 # Step 4. Warp into mni space
