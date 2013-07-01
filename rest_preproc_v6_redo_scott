@@ -3,17 +3,30 @@ set -ex
 
 #
 #
-# USAGE: rest_preproc_v6_scott 10152
+# USAGE: 
+#   REDO=1 SUBJECT=10845 rest_preproc_v6_scott 
+#   qsub rest_preproc_v6_scott -v SUBJECT=10845
+# 
 #
 #  expect
-#     $FSDir/10152/mri/aseg.mgz brainmask.mgz T1.mgz
-#     ${subjRootDir}/10152/rest/all.nii.gz
+#     * defined: $SUBJECT 
+#     * exists:  $FSDir/$SUBJECT/mri/aseg.mgz brainmask.mgz T1.mgz
+#     * exists:  ${subjRootDir}/$SUBJECT/rest/all.nii.gz
+#     * exists:  $(dirname $0)/preprocessMprage 
+#  optional
+#     * define: REDO, to remove old before starting again
 #
-#  **** use REDO to redo  ****
 #
 # FINAL OUTPUT:
 #  rest_preproc_native
 #  rest_preproc_mni
+#
+#2013-06-28
+#  do not take input arguments. require SUBJECT be in the environment
+#
+#2013-06-28
+# update FSDIR to _AP for to match aarthi's
+#    this change does not effect processing pipeline
 #
 #2013-06-24
 # add version suffix
@@ -34,10 +47,8 @@ set -ex
 #       Jo, et al., Neuroimage, Vol 52 (2), 571-582, 2010.
 #       [http://dx.doi.org/10.1016/j.neuroimage.2010.04.246]
 
-#the first argument to the script is expected to be a subject ID
-s=$1
-# if it wasn't provided, just use 1-152
-[ -z "$s" ] && s=10845 && echo "using 10152 by default!" 
+# 
+[ -z "$SUBJECT" ] && echo "need SUBJECT; e.g.    REDO=1 SUBJECT=10845 $0"  && exit 1
 
 # find the first date in this script, call that the script version
 scriptver=$(perl -lne 'print&&exit if /#\d{4}/' $0)  
