@@ -17,7 +17,8 @@ cwd=$(pwd)
 #Aarthi 06/12/2012 - redoing preprocess to make the alignment better. using FLIRT to align EPI to mprage. 
 
 #for s in $(ls -d 1*); do
-for s in 10767; do
+for s in 10845; do
+#10845 10851; do
 
 		#
 		# Step 1. Create nuisance regressors from Freesurfer segementation
@@ -29,7 +30,7 @@ for s in 10767; do
 		rm -rf mni_AP_redo
 		mkdir mni_AP_redo
 
-		cd /Volumes/Serena/Rest/FS_Subjects_AP/${s}/mri
+		cd /Volumes/Phillips/Rest/FS_Subjects_AP/${s}/mri
 		
 		# move freesurfer segmentation files to mrpage folder
 		mri_convert brainmask.mgz mprage_bet.nii.gz
@@ -111,8 +112,8 @@ for s in 10767; do
 		#
 	  	# preprocess with physio dat,run AFNI's automatic preprocess script. Regress out physio, WM and ventrical noise	
 	  	#
-		if [ -f /Volumes/Serena/Rest/physio1D/${s}_RetroTS.slibase.1D ]; then
-		afni_proc.py -bash -execute -out_dir afni_proc -scr_overwrite -subj_id ${s} -dsets rest_epi_RPI+orig -blocks tshift volreg mask scale regress -do_block despike ricor -ricor_regs  /Volumes/Serena/Rest/physio1D/${s}_RetroTS.slibase.1D -ricor_regress_method 'per-run' -tshift_opts_ts -tpattern seq+z -mask_apply epi -regress_errts_prefix errts -regress_no_motion -regress_opts_3dD -GOFORIT 10
+		if [ -f /Volumes/Phillips/Rest/physio1D/${s}_RetroTS.slibase.1D ]; then
+		afni_proc.py -bash -execute -out_dir afni_proc -scr_overwrite -subj_id ${s} -dsets rest_epi_RPI+orig -blocks tshift volreg mask scale regress -do_block despike ricor -ricor_regs  /Volumes/Phillips/Rest/physio1D/${s}_RetroTS.slibase.1D -ricor_regress_method 'per-run' -tshift_opts_ts -tpattern seq+z -mask_apply epi -regress_errts_prefix errts -regress_no_motion -regress_opts_3dD -GOFORIT 10
 		
 		#
 		# preprocess without physiodata
@@ -124,10 +125,10 @@ for s in 10767; do
 		
 		cp afni_proc/errts.${s}+orig* .
 		
-		cp afni_proc/dfile.rall.1D .
+		cp afni_proc/dfile_rall.1D .
 		
 		#demean motion		
-		1d_tool.py -infile dfile.rall.1D -set_nruns 1 -demean -write motion_demean.1D
+		1d_tool.py -infile dfile_rall.1D -set_nruns 1 -demean -write motion_demean.1D
 		
 		#align errts functional to structural using FSL (flirt)
 		#decided to use DOF 6 because it is the most conservative (assumes EPI and mprage are the same size). went with trilinear interpolation
