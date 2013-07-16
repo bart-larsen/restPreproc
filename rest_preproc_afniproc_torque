@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+set -xe
+
+#
+# Taken from example 5 of afni_proc.py
+#
+#2013-07-16
+#
+
+[ -z "$SUBJECT" -o -z "$VISIT" ] && echo "need SUBJECT and VISIT; e.g.    qsub $0 -v SUBJECT=10845,VISIT=20100924"  && exit 1
+
+[ -z "$VERSION" ] && VERSION="afniproc"
+
+scriptdir=$(cd $(dirname $0);pwd)              
+# define origepi, physioDir, FSDir,dicomRootDir, subjRootDir, physiofile
+source $scriptdir/rewardrest.cfg 
+
+# check for origepi ("rest.nii.gz"), or make it 
+source $scriptdir/makerestimage.bash
+
+savedir=$(dirname $origepi)/$VERSION
+
+[ -z "$physiofile" -o ! -r "$physiofile" ] && echo "NO PHYSIO! in $physioDir/$SUBJECT/$VISIT/" && exit 1
+
+[ -n "$REDO" -a -r $savedir ] && rm -r $savedir
+[ -r "$savedir" ] && echo "$savedir already exists!\nuse: REDO=1 $0 $@ " && exit 1
+mkdir $savedir
+
+cd $savedir 
+afni_proc.py \
+      -subj_id $s                             \
+      -dsets $origepi                         \
+      -copy_anat ../anat/mprage_bet.nii.gz    \
+      -blocks despike ricor tshift align tlrc \
+              volreg blur mask regress        \
+      -tcat_remove_first_trs 3                \
+      -ricor_regs_nfirst 3                    \
+      -ricor_regs $physiofile                 \
+      -volreg_align_e2a                       \
+      -volreg_tlrc_warp                       \
+      -blur_size 6                            \
+      -regress_motion_per_run                 \
+      -regress_censor_motion 0.2              \
+      -regress_bandpass 0.01 0.1              \
+      -regress_apply_mot_types demean deriv   \
+      -regress_run_clustsim no                \
+      -regress_est_blur_errts
+
