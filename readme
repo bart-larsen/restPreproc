@@ -1,0 +1,3 @@
+rest_preproc_afniproc_torque : rewrite using only afni
+rest_preproc_torque          : v6_redo for torque
+rest_preproc_v6_redo         : aarthi's script for one subject and wallace path for testing
