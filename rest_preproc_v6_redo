@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -xe
 #preprocess rest functinal
 #normalize to MNI brain
 #added afni's anaticor method to remove local nuisance signals
@@ -12,11 +12,16 @@
 #       [http://dx.doi.org/10.1016/j.neuroimage.2010.04.246]
 
 
+scriptdir=$( cd $(dirname $0);pwd)
+cd /data/Luna1/Reward/Rest/
 cwd=$(pwd)
+export FSLOUTPUTTYPE=NIFTI_GZ
 
+#Will 08/02/2013 - run on wallace for 10845 20100924 to compare
 #Aarthi 06/12/2012 - redoing preprocess to make the alignment better. using FLIRT to align EPI to mprage. 
 
 #for s in $(ls -d 1*); do
+date=20100924
 for s in 10845; do
 #10845 10851; do
 
@@ -24,13 +29,14 @@ for s in 10845; do
 		# Step 1. Create nuisance regressors from Freesurfer segementation
 		#
 		
+                [ ! -d ${cwd}/${s}/ ] && mkdir ${cwd}/${s}
 		cd ${cwd}/${s}/
 		
 		# clean up previous outputs, make mprage folder
 		rm -rf mni_AP_redo
 		mkdir mni_AP_redo
 
-		cd /Volumes/Phillips/Rest/FS_Subjects_AP/${s}/mri
+		cd /data/Luna1/Reward/FS_Subjects/${s}_$date/mri
 		
 		# move freesurfer segmentation files to mrpage folder
 		mri_convert brainmask.mgz mprage_bet.nii.gz
@@ -112,8 +118,9 @@ for s in 10845; do
 		#
 	  	# preprocess with physio dat,run AFNI's automatic preprocess script. Regress out physio, WM and ventrical noise	
 	  	#
-		if [ -f /Volumes/Phillips/Rest/physio1D/${s}_RetroTS.slibase.1D ]; then
-		afni_proc.py -bash -execute -out_dir afni_proc -scr_overwrite -subj_id ${s} -dsets rest_epi_RPI+orig -blocks tshift volreg mask scale regress -do_block despike ricor -ricor_regs  /Volumes/Phillips/Rest/physio1D/${s}_RetroTS.slibase.1D -ricor_regress_method 'per-run' -tshift_opts_ts -tpattern seq+z -mask_apply epi -regress_errts_prefix errts -regress_no_motion -regress_opts_3dD -GOFORIT 10
+                physiofile=$(ls /data/Luna1/Reward/Physio/$s/$date/rest_*_RetroTS.slibase.1D|head -n1 )
+		if [ -f $physiofile ]; then
+		afni_proc.py -bash -execute -out_dir afni_proc -scr_overwrite -subj_id ${s} -dsets rest_epi_RPI+orig -blocks tshift volreg mask scale regress -do_block despike ricor -ricor_regs  $physiofile -ricor_regress_method 'per-run' -tshift_opts_ts -tpattern seq+z -mask_apply epi -regress_errts_prefix errts -regress_no_motion -regress_opts_3dD -GOFORIT 10
 		
 		#
 		# preprocess without physiodata
@@ -210,7 +217,7 @@ for s in 10845; do
 		3dAFNItoNIFTI -prefix mprage_bet.nii.gz mprage_bet_RPI+orig	
 
 		#run michael's normalization script 	
-		source ../../../rest_scripts/rest_preprocessMprage -r MNI_2mm -n mprage.nii.gz -d n
+		$scriptdir/rest_preprocessMprage -r MNI_2mm -n mprage.nii.gz -d n
 		
 
 		# Step 4. Warp into mni space

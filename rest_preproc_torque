@@ -67,7 +67,7 @@ scriptdir=$(cd $(dirname $0);pwd)
 gitver=$(cd $(dirname $0);git show|head -n1)   
 # directory suffix for different versions of processing
 preprocversion="$VERSION"
-[ -z "$preprocversion" ] && preprocversion="_Scott"
+[ -z "$preprocversion" ] && preprocversion="preproc_torque"
 
 # if this doesn't exist, it won't be used
 physioDir="/data/Luna1/Reward/Physio/"    
@@ -77,7 +77,7 @@ FSDir="/data/Luna1/Reward/FS_Subjects/"
 # otherwise will put one there
 subjRootDir="/data/Luna1/Reward/Rest/"  
 # where to search for the dicoms
-dicomRootDir="/data/Luna1/Raw/MRCTR/"  
+dicomRootDir="/data/Luna1/Raw/MRRC_Org/"  
 
 # use s to keep code looking similiar
 s="${SUBJECT}_${VISIT}"
@@ -89,13 +89,14 @@ origepi=${subjRootDir}/${s}/rest.nii.gz
 if [ ! -r $origepi ]; then
 
  # find a rest directory and make sure it has enough dcms
- restdcmdir=$(find ${dicomRootDir}/${s}/ -iname '*rest*' -type d | tail -n1)
+ restdcmdir=$(find ${dicomRootDir}/$SUBJECT/$VISIT/ -iname '*rest*' -type d | tail -n1)
  [ -z "$restdcmdir"  ] && echo "no dcmdir for $s!" && exit 1
  [ $(ls $restdcmdir/MR* | wc -l ) -ne 200 ] && echo "$s: $restdcmdir doesnt have 200 MR* dcms!" && exit 1
 
  restdir=$(dirname $origepi)
  [ ! -d $restdir ] && mkdir -p $restdir
  cd $restdir
+ echo "using $(which Dimon) of version $(Dimon -v)"
  Dimon -infile_prefix $restdcmdir/ -gert_create_dataset -gert_write_as_nifti -dicom_org
  mv OutBrick* $origepi
  cd -
@@ -107,6 +108,7 @@ for file in $FSDir/${s}/mri/aseg.mgz $origepi; do
 done
 
 physiofile=$(find $physioDir/$SUBJECT/$VISIT/ -iname '*rest*RetroTS.slibase.1D'|tail -n1)
+#physiofile=$(find /data/Luna1/Reward/KaiPhysio/ -iname "$SUBJECT*RetroTS*.1D"|tail -n1)
 [ -n "$physiofile" -a -f "$physiofile" ] || echo "NO PHYSIO! in $physioDir/$SUBJECT/$VISIT/"
 
 
@@ -123,12 +125,12 @@ cd ${subjRootDir}/${s}/
 
 #### clean up previous outputs, make mprage folder
 # remove if we want to redo
-[ -n "$REDO" -a -r mni$preprocversion ] && rm -r mni$preprocversion
-[ -r mni$preprocversion ] && echo "${subjRootDir}/${s}/mni$preprocversion already exists!\nuse: REDO=1 $0 $@ " && exit 1
+[ -n "$REDO" -a -r $preprocversion ] && rm -r $preprocversion
+[ -r $preprocversion ] && echo "${subjRootDir}/${s}/$preprocversion already exists!\nuse: REDO=1 $0 $@ " && exit 1
 
-mkdir mni$preprocversion
-date > mni$preprocversion/processing.info
-echo -e "script version:$gitver\n$scriptver\n$0 $@;\n#located in $scriptdir">> mni$preprocversion/processing.info
+mkdir $preprocversion
+date > $preprocversion/processing.info
+echo -e "script version:$gitver\n$scriptver\n$0 $@;\n#located in $scriptdir">> $preprocversion/processing.info
 
 #
 # 0. get structrual from FreeSurfer
@@ -146,7 +148,7 @@ mri_convert brainmask.mgz mprage_bet.nii.gz
 mri_convert aseg.mgz      aseg.nii.gz
 
 mv mprage.nii.gz mprage_bet.nii.gz aseg.nii.gz  \
-   ${subjRootDir}/${s}/mni$preprocversion/
+   ${subjRootDir}/${s}/$preprocversion/
 
 #
 #
@@ -154,7 +156,7 @@ mv mprage.nii.gz mprage_bet.nii.gz aseg.nii.gz  \
 #
 #
 
-cd ${subjRootDir}/${s}/mni$preprocversion/
+cd ${subjRootDir}/${s}/$preprocversion/
 
 #CANNOT DEOBLIQUE BECAUSE it changes number of slices which messes up the physio stuff. 
 #3dWarp -deoblique -prefix rest_epi_RPI_do rest_epi_RPI+orig
@@ -315,8 +317,8 @@ rm resid_bp_b.nii.gz
 3dAFNItoNIFTI -prefix mprage.nii.gz     mprage_RPI+orig
 3dAFNItoNIFTI -prefix mprage_bet.nii.gz mprage_bet_RPI+orig	
 
-rm mprage.nii.gz
-rm mprage_bet.nii.gz		
+#rm mprage.nii.gz
+#rm mprage_bet.nii.gz		
 
 #run michael's normalization script 	
 #"Running affine (linear) warp to extract warp coefficients"

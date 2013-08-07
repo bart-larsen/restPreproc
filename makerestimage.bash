@@ -2,9 +2,11 @@
 dcmdirs="${dicomRootDir}/${s}/"
 restdir=$(dirname $origepi)
 
-[ -z "$origepi" ]                    && echo "need origepi!" && exit 1;
-[ -z "$expectedRestDicoms" ]         && echo "need expectedRestDicoms!" && exit 1;
-[ -z "$dcmdirs" -o ! -r "$dcmdirs" ] && echo "$dcmdirs DNE!" && exit 1;
+[ -z "$s" ]                          && echo "need \$s as subject[_date]!" && exit 1;
+[ -z "$origepi" ]                    && echo "need \$origepi as output to save!" && exit 1;
+[ -z "$expectedRestDicoms" ]         && echo "need \$expectedRestDicoms as dicom dir!" && exit 1;
+[ -z "$dcmdirs" -o ! -r "$dcmdirs" ] && echo "\$dcmdirs=root of subject dicoms ($dcmdirs) DNE!" && exit 1;
+[ -z "$FSDir" -o ! -r "$FSDir" ]     && echo "\$FSDir=root of subject freesurfer ($FSDir) DNE!" && exit 1;
 
 #
 # convert epi from dicoms if we need it
@@ -18,8 +20,8 @@ if [ ! -r $origepi ]; then
 
  [ ! -d $restdir ] && mkdir -p $restdir
  cd $restdir
- Dimon -infile_prefix $restdcmdir/ -gert_create_dataset -gert_write_as_nifti -dicom_org
- mv OutBrick* $origepi
+ Dimon -gert_to3d_prefix $(basename $origepi) -infile_prefix $restdcmdir/ -gert_create_dataset -gert_write_as_nifti -dicom_org
+ mv $(basename $origepi)* $origepi
  cd -
 fi
 
