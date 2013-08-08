@@ -8,6 +8,11 @@ set -ex
 #   qsub rest_preproc_torque -v SUBJECT=10845,REDO=1,VISIT=20100924
 # 
 #
+#  depends
+#     * rewardrest.cfg      set file locations
+#     * makerestimage.bash  pull/make rest images, 
+#                           get FS parcilation (extract NBT, errod)
+#                           warp stuct to MNI
 #  expect
 #     * defined: $SUBJECT 
 #     * defined: $VISIT
@@ -21,6 +26,9 @@ set -ex
 # FINAL OUTPUT:
 #  rest_preproc_native
 #  rest_preproc_mni
+#
+#2013-08-07
+# abstract with makerestimage.bash and rewardrest.cfg
 #
 #2013-07-16
 #  add VISIT and VERSION,
@@ -67,47 +75,24 @@ scriptdir=$(cd $(dirname $0);pwd)
 gitver=$(cd $(dirname $0);git show|head -n1)   
 # directory suffix for different versions of processing
 preprocversion="$VERSION"
-[ -z "$preprocversion" ] && preprocversion="preproc_torque"
+[ -z "$preprocversion" ] && preprocversion="preproc_torque_abs"
 
-# if this doesn't exist, it won't be used
-physioDir="/data/Luna1/Reward/Physio/"    
-# what dir has free surfer aseg.mgz
-FSDir="/data/Luna1/Reward/FS_Subjects/" 
-# expect after this dir there is subj/rest/all.nii.gz
-# otherwise will put one there
-subjRootDir="/data/Luna1/Reward/Rest/"  
-# where to search for the dicoms
-dicomRootDir="/data/Luna1/Raw/MRRC_Org/"  
+#FSDir:        what dir has free surfer aseg.mgz
+#subjRootDir:  same as restdir, where subject directories "lunaid_date" are
+#dicomRootDir: where the subject "lunaid_date" raw dcms are
+#s:            subjuect, probably always "${SUBJECT}_${VISIT}"
+#origepi       location of (or where to put) the origianl epi (e.g. rest+orig.HEAD)
+#physioDir:    physio
+#physiofile:   RetroTS file if it exists
+source $scriptdir/rewardrest.cfg
 
-# use s to keep code looking similiar
-s="${SUBJECT}_${VISIT}"
-
-origepi=${subjRootDir}/${s}/rest.nii.gz
-
-# we don't have a rest.nii.gz
-# so make one
-if [ ! -r $origepi ]; then
-
- # find a rest directory and make sure it has enough dcms
- restdcmdir=$(find ${dicomRootDir}/$SUBJECT/$VISIT/ -iname '*rest*' -type d | tail -n1)
- [ -z "$restdcmdir"  ] && echo "no dcmdir for $s!" && exit 1
- [ $(ls $restdcmdir/MR* | wc -l ) -ne 200 ] && echo "$s: $restdcmdir doesnt have 200 MR* dcms!" && exit 1
-
- restdir=$(dirname $origepi)
- [ ! -d $restdir ] && mkdir -p $restdir
- cd $restdir
- echo "using $(which Dimon) of version $(Dimon -v)"
- Dimon -infile_prefix $restdcmdir/ -gert_create_dataset -gert_write_as_nifti -dicom_org
- mv OutBrick* $origepi
- cd -
-fi
+# 1. we don't have a rest.nii.gz, make one
+# 2. get FS anantomical things into anat
+# 3. parse aseg, get WM, Vent, NBT, GM, BS + errode
+# 4. warp struct to MNI
+source $scriptdir/makerestimage.bash
 
 
-for file in $FSDir/${s}/mri/aseg.mgz $origepi; do
- [ ! -r $file ] && echo "need $file! cannot read it" && exit 1
-done
-
-physiofile=$(find $physioDir/$SUBJECT/$VISIT/ -iname '*rest*RetroTS.slibase.1D'|tail -n1)
 #physiofile=$(find /data/Luna1/Reward/KaiPhysio/ -iname "$SUBJECT*RetroTS*.1D"|tail -n1)
 [ -n "$physiofile" -a -f "$physiofile" ] || echo "NO PHYSIO! in $physioDir/$SUBJECT/$VISIT/"
 
@@ -117,13 +102,10 @@ physiofile=$(find $physioDir/$SUBJECT/$VISIT/ -iname '*rest*RetroTS.slibase.1D'|
 
 
 
-#
-# Step 1. Create nuisance regressors from Freesurfer segementation
-#
 
 cd ${subjRootDir}/${s}/
 
-#### clean up previous outputs, make mprage folder
+#### clean up previous 
 # remove if we want to redo
 [ -n "$REDO" -a -r $preprocversion ] && rm -r $preprocversion
 [ -r $preprocversion ] && echo "${subjRootDir}/${s}/$preprocversion already exists!\nuse: REDO=1 $0 $@ " && exit 1
@@ -132,27 +114,16 @@ mkdir $preprocversion
 date > $preprocversion/processing.info
 echo -e "script version:$gitver\n$scriptver\n$0 $@;\n#located in $scriptdir">> $preprocversion/processing.info
 
-#
-# 0. get structrual from FreeSurfer
-#   - convert mgz to nifti
-#      brainmask -> mprage_bet
-#      T1        -> mprage
-#      aseg      -> aseg
-#  
-
-cd $FSDir/${s}/mri
-
-# move freesurfer segmentation files to mrpage folder
-mri_convert T1.mgz        mprage.nii.gz
-mri_convert brainmask.mgz mprage_bet.nii.gz
-mri_convert aseg.mgz      aseg.nii.gz
-
-mv mprage.nii.gz mprage_bet.nii.gz aseg.nii.gz  \
-   ${subjRootDir}/${s}/$preprocversion/
+# pull in anatomical stuff, so it's in the same directory
+#ln -s ${subjRootDir}/${s}/anat/{mprage,aseg,warpcoef}* ${subjRootDir}/${s}/$preprocversion/
+ln -s ${subjRootDir}/${s}/anat/* ${subjRootDir}/${s}/$preprocversion/
 
 #
+# Step 1. Create nuisance regressors from Freesurfer segementation
 #
-# 1. Orient and extract masks
+#
+#
+# 1.1 Orient and extract masks
 #
 #
 
@@ -162,40 +133,17 @@ cd ${subjRootDir}/${s}/$preprocversion/
 #3dWarp -deoblique -prefix rest_epi_RPI_do rest_epi_RPI+orig
 
 
+
+##
+# make func match anantomical; put in RPI as afni BRIK/HEAD
+##
 3dcopy $origepi ./rest_epi
-
-# switch to RPI orientation for both func and anat files
 3dresample -orient RPI -prefix rest_epi_RPI -inset rest_epi+orig
-
-3dcopy mprage_bet.nii.gz mprage_bet
-3dresample -orient RPI -prefix mprage_bet_RPI -inset mprage_bet+orig
-
-3dcopy mprage.nii.gz mprage
-3dresample -orient RPI -prefix mprage_RPI -inset mprage+orig
-
-3dcopy aseg.nii.gz aseg
-3dresample -orient RPI -prefix aseg_RPI -inset aseg+orig
-
-# create WM, Ventricals, Non-brain-tissue(NBT) and GM masks
-
-3dcalc -prefix WM   -a aseg_RPI+orig -expr 'amongst(a,2,7,41,46,77,78,79)'            
-3dcalc -prefix Vent -a aseg_RPI+orig -expr 'amongst(a,4,5,14,15,43,44)'               
-3dcalc -prefix GM_L -a aseg_RPI+orig -expr 'amongst(a,3,8,10,11,12,13,17,18,26,28)'   
-3dcalc -prefix GM_R -a aseg_RPI+orig -expr 'amongst(a,42,47,49,50,51,52,53,54,58,60)' 
-3dcalc -prefix BS   -a aseg_RPI+orig -expr 'amongst(a,16)'                            
-3dcalc -prefix NBT  -a mprage_bet_RPI+orig -b WM+orig -c Vent+orig -d GM_L+orig -e GM_R+orig -f BS+orig -expr '(a/a)-(b+c+d+e+f)'
-
-# erode masks by 1 voxel to reduce partial volume effect 
-3dcalc -prefix WM_erod -a WM+orig -b a+i -c a-i -d a+j -e a-j -f a+k -g a-k -expr 'a*(1-amongst(0,b,c,d,e,f,g))'
-
-# after some test dont erode Ventrical masks, as no voxels will survive
-#3dcalc -a Vent+orig -b a+i -c a-i -d a+j -e a-j -f a+k -g a-k -expr 'a*(1-amongst(0,b,c,d,e,f,g))' -prefix Vent_erod
-
-3dcalc -prefix NBT_erod -a NBT+orig -b a+i -c a-i -d a+j -e a-j -f a+k -g a-k -expr 'a*(1-amongst(0,b,c,d,e,f,g))'
 
 
 #
 # Step 2. Preprocessing functional rest data
+#
 
 #
 # preprocess with physio dat,run AFNI's automatic preprocess script. Regress out physio, WM and ventrical noise	
@@ -320,14 +268,12 @@ rm resid_bp_b.nii.gz
 #rm mprage.nii.gz
 #rm mprage_bet.nii.gz		
 
-#run michael's normalization script 	
-#"Running affine (linear) warp to extract warp coefficients"
-#"Running nonlinear transformation to warp mprage to: ${reference}"
-$scriptdir/rest_preprocessMprage -r MNI_2mm -n mprage.nii.gz -d n
-
-
 # Step 4. Warp into mni space
-#
+ 
+##
+## Micheal's script is run by makerestimage.bash, warp matrix should already exist
+##
+
 #3dAFNItoNIFTI -prefix all.nii.gz rest_epi_RPI_al+orig 
 
 #fslmaths all_bet -Tmean func_mean
