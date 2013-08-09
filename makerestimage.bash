@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-dcmdirs="${dicomRootDir}/${s}/"
+dcmdirs=$dicomDir
 restdir=$(dirname $origepi)
 
 [ -z "$s" ]                          && echo "need \$s as subject[_date]!" && exit 1;
@@ -26,7 +26,8 @@ if [ ! -r $origepi ]; then
 fi
 
 #### Anatomical
-#  1. copy anatomical
+#  1.1 copy anatomical
+#  1.2 put in afni BRIK/HEAD and orient to RPI
 #  2. warp to mni
 #
 [ ! -d $FSDir/${s}/mri/ ] && echo "cannot find subjects FS $FSDir/${s}/mri/" && exit 1

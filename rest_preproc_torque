@@ -22,11 +22,14 @@ set -ex
 #  optional
 #     * define: REDO, to remove old before starting again
 #     * define: VERSION, to change output dir suffix
+#     * define: NOPHYSIO, to not use physio
 #
 # FINAL OUTPUT:
 #  rest_preproc_native
 #  rest_preproc_mni
 #
+#2013-08-08
+# no physio option via env variable
 #2013-08-07
 # abstract with makerestimage.bash and rewardrest.cfg
 #
@@ -75,7 +78,7 @@ scriptdir=$(cd $(dirname $0);pwd)
 gitver=$(cd $(dirname $0);git show|head -n1)   
 # directory suffix for different versions of processing
 preprocversion="$VERSION"
-[ -z "$preprocversion" ] && preprocversion="preproc_torque_abs"
+[ -z "$preprocversion" ] && preprocversion="preproc_torque"
 
 #FSDir:        what dir has free surfer aseg.mgz
 #subjRootDir:  same as restdir, where subject directories "lunaid_date" are
@@ -94,13 +97,19 @@ source $scriptdir/makerestimage.bash
 
 
 #physiofile=$(find /data/Luna1/Reward/KaiPhysio/ -iname "$SUBJECT*RetroTS*.1D"|tail -n1)
-[ -n "$physiofile" -a -f "$physiofile" ] || echo "NO PHYSIO! in $physioDir/$SUBJECT/$VISIT/"
+# if we want nophysio, undefine the physio file
+[ -n "$NOPHSYIO" ] && unset physiofile
+#  if physiofile's not define or doesn't exists, change the proc directory and warn if this is unexpected
+if ! [ -n "$physiofile" -a -f "$physiofile" ]; then
+  preprocversion="${preprocversion}_nophysio"
+  [ -z "$NOPHYSIO" ] && echo "NO PHYSIO! in $physioDir/$SUBJECT/$VISIT/"
+fi
 
 
 
-### Structural stuff
 
 
+### Start preprocessing
 
 
 cd ${subjRootDir}/${s}/
