@@ -20,6 +20,7 @@ set -ex
 #     * exists:  ${subjRootDir}/$SUBJECT/rest/all.nii.gz
 #     * exists:  $(dirname $0)/preprocessMprage 
 #  optional
+#     * define: TASK, defaults to reward (in common.src.bash)
 #     * define: REDO, to remove old before starting again
 #     * define: VERSION, to change output dir suffix
 #     * define: NOPHYSIO, to not use physio
@@ -28,6 +29,8 @@ set -ex
 #  rest_preproc_native
 #  rest_preproc_mni
 #
+#2013-08-15
+#  use common.src.bash, add TASK parameter
 #2013-08-08
 # no physio option via env variable
 #2013-08-07
@@ -65,23 +68,12 @@ set -ex
 #       Jo, et al., Neuroimage, Vol 52 (2), 571-582, 2010.
 #       [http://dx.doi.org/10.1016/j.neuroimage.2010.04.246]
 
-# 
-[ -z "$SUBJECT" -o -z "$VISIT" ] && echo "need SUBJECT and VISIT; e.g.    qsub $0 -v SUBJECT=10845,VISIT=20100924"  && exit 1
-
-export FSLOUTPUTTYPE="NIFTI_GZ"
-
-# find the first date in this script, call that the script version
-scriptver=$(perl -lne 'print&&exit if /#\d{4}/' $0)  
-# absolute path to this script, used to reference rest_preprocessMprage
 scriptdir=$(cd $(dirname $0);pwd)              
 [[ $scriptdir =~ spool ]] && scriptdir="/home/foranw/src/restPreproc"
 
-# what commit are we on
-gitver=$(cd $(dirname $0);git show|head -n1)   
-# directory suffix for different versions of processing
-preprocversion="$VERSION"
-[ -z "$preprocversion" ] && preprocversion="preproc_torque"
-
+# get add3dNote and printInfo, also set up some env vars (FSL export type=nii.gz)
+source $scriptdir/common.src.bash
+# additionally sources configuration
 #FSDir:        what dir has free surfer aseg.mgz
 #subjRootDir:  same as restdir, where subject directories "lunaid_date" are
 #dicomRootDir: where the subject "lunaid_date" raw dcms are
@@ -89,12 +81,14 @@ preprocversion="$VERSION"
 #origepi       location of (or where to put) the origianl epi (e.g. rest+orig.HEAD)
 #physioDir:    physio
 #physiofile:   RetroTS file if it exists
-source $scriptdir/rewardrest.cfg
 
-# 1. we don't have a rest.nii.gz, make one
-# 2. get FS anantomical things into anat
-# 3. parse aseg, get WM, Vent, NBT, GM, BS + errode
-# 4. warp struct to MNI
+# directory suffix for different versions of processing
+preprocversion="$VERSION"
+[ -z "$preprocversion" ] && preprocversion="preproc_torque"
+
+
+# check that we have anatomic image, or die
+# and if we don't have a rest.nii.gz, make one
 source $scriptdir/makerestimage.bash
 
 
@@ -123,8 +117,9 @@ cd ${subjRootDir}/${s}/
 [ -r $preprocversion ] && echo "${subjRootDir}/${s}/$preprocversion already exists!\nuse: REDO=1 $0 $@ " && exit 1
 
 mkdir $preprocversion
-date > $preprocversion/processing.info
-echo -e "script version:$gitver\n$scriptver\n$0 $@;\n#located in $scriptdir">> $preprocversion/processing.info
+
+# print script info (func defined in common.src.bash)
+printInfo > processing.info
 
 # pull in anatomical stuff, so it's in the same directory
 #ln -s ${subjRootDir}/${s}/anat/{mprage,aseg,warpcoef}* ${subjRootDir}/${s}/$preprocversion/
@@ -202,6 +197,10 @@ bet func_mean func_mean_bet
 flirt -v -in func_mean_bet     -ref mprage_bet_RPI.nii -omat epi2brain.txt -paddingsize 0.0 -dof 6           -o func2brain_errts.nii.gz
 flirt -v -in errts.${s}.nii.gz -ref mprage_bet_RPI.nii -init epi2brain.txt -paddingsize 0.0 -dof 6 -applyxfm -o rest_epi_RPI_errts_al.nii.gz 	
 flirt -v -in full_mask.${s}    -ref mprage_bet_RPI.nii -init epi2brain.txt -paddingsize 0.0 -dof 6 -applyxfm -interp nearestneighbour -o mask_al.nii.gz
+
+# add a note to the aligned errts about this
+add3dNote errts.${s}.nii.gz rest_epi_RPI_errts_al.nii.gz  \
+  "flirt -v -in errts.${s}.nii.gz -ref mprage_bet_RPI.nii -init epi2brain.txt -paddingsize 0.0 -dof 6 -applyxfm -o rest_epi_RPI_errts_al.nii.gz"
 
 # sometimes fsl doesn't listen
 # actually make .nii.gz if we haven't  -- 3dcopy fails to write block 199 for errts??
@@ -293,6 +292,9 @@ rm resid_bp_b.nii.gz
 #flirt -in func_bet -ref mprage_bet -out func_to_mprage -omat func_to_mprage.mat -dof 6
 
 applywarp -i rest_preproc_native -r ~/standard/fsl_mni152/MNI152_T1_2mm.nii.gz -o rest_preproc_mni -w mprage_warpcoef	
+# add notes for this command
+add3dNote rest_preproc_native.nii.gz rest_preproc_mni.nii.gz \
+  "applywarp -i rest_preproc_native -r ~/standard/fsl_mni152/MNI152_T1_2mm.nii.gz -o rest_preproc_mni -w mprage_warpcoef"
 
 #rm all_bet.nii.gz		
 # rest_preproc_mni is the functional file in MNI space

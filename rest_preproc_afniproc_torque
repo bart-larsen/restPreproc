@@ -46,7 +46,7 @@ afni_proc.py \
       -subj_id $s                             \
       -dsets $origepi                         \
       -copy_anat ../anat/mprage_bet.nii.gz    \
-      -tlrc_base TT_avg152T1+tlrc             \
+      -tlrc_base MNI_avg152T1+tlrc            \
       -blocks despike ricor tshift align tlrc \
               volreg blur mask regress        \
       -tcat_remove_first_trs 3                \
