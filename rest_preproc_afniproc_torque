@@ -15,9 +15,14 @@ set -xe
 
 [ -z "$VERSION" ] && VERSION="afniproc"
 
+echo "$SUBJECT $VISIT: $VERSION"
+
 scriptdir=$(cd $(dirname $0);pwd)              
+[[ $scriptdir =~ spool ]] && scriptdir="/home/foranw/src/restPreproc"
+which afni_proc.py
 # define origepi, physioDir, FSDir,dicomRootDir, subjRootDir, physiofile
 source $scriptdir/rewardrest.cfg 
+
 
 # check for origepi ("rest.nii.gz"), or make it 
 source $scriptdir/makerestimage.bash

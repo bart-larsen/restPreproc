@@ -14,7 +14,7 @@ scriptdir=$(cd $(dirname $0);pwd)
 for dir in $(ls -d $physioDir/*/* | head -n 3); do
  date=$(basename $dir)
  subj=$(basename $(dirname $dir))
- SUBJECT=$subj VISIT=$date  $scriptdir/rest_preproc_torque |tee -a logs/$subj_date.log
- SUBJECT=$subj VISIT=$date  $scriptdir/rest_preproc_afniproc_torque |tee -a logs/$subj_date.afniproc.log &
- NOPHYSIO=1 SUBJECT=$subj VISIT=$date  $scriptdir/rest_preproc_torque|tee -a logs/$subj_date.nopysio.log &
+ SUBJECT=$subj VISIT=$date  $scriptdir/rest_preproc_torque |tee -a logs/${subj}_$date.log
+ SUBJECT=$subj VISIT=$date  $scriptdir/rest_preproc_afniproc_torque |tee -a logs/${subj}_$date.afniproc.log &
+ NOPHYSIO=1 SUBJECT=$subj VISIT=$date  $scriptdir/rest_preproc_torque|tee -a logs/${subj}_$date.nopysio.log &
 done

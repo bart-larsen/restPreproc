@@ -74,6 +74,8 @@ export FSLOUTPUTTYPE="NIFTI_GZ"
 scriptver=$(perl -lne 'print&&exit if /#\d{4}/' $0)  
 # absolute path to this script, used to reference rest_preprocessMprage
 scriptdir=$(cd $(dirname $0);pwd)              
+[[ $scriptdir =~ spool ]] && scriptdir="/home/foranw/src/restPreproc"
+
 # what commit are we on
 gitver=$(cd $(dirname $0);git show|head -n1)   
 # directory suffix for different versions of processing
@@ -98,7 +100,8 @@ source $scriptdir/makerestimage.bash
 
 #physiofile=$(find /data/Luna1/Reward/KaiPhysio/ -iname "$SUBJECT*RetroTS*.1D"|tail -n1)
 # if we want nophysio, undefine the physio file
-[ -n "$NOPHSYIO" ] && unset physiofile
+[ -n "$NOPHYSIO" ] && unset physiofile
+echo $physiofile
 #  if physiofile's not define or doesn't exists, change the proc directory and warn if this is unexpected
 if ! [ -n "$physiofile" -a -f "$physiofile" ]; then
   preprocversion="${preprocversion}_nophysio"
