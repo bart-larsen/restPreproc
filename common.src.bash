@@ -14,6 +14,9 @@
 [ -z "$SUBJECT" -o -z "$VISIT" ] && echo "need SUBJECT and VISIT; e.g.    qsub $0 -Vv SUBJECT=10845,VISIT=20100924"  && exit 1
 
 # use compressed nifti
+#set +e
+#source /data/Luna1/ni_tools/ni_path.bash
+#set -e
 export FSLOUTPUTTYPE="NIFTI_GZ"
 
 # load settings

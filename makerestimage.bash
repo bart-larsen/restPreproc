@@ -4,14 +4,15 @@
 # check for epi (Dimon from dcm if DNE)
 # 
 
+restdir=$(dirname $origepi)
+dcmdirs=$dicomDir
+
 # these should all be source from cfg file which would be loaded by common.src.bash 
 [ -z "$s" ]                          && echo "need \$s as subject[_date]!" && exit 1;
 [ -z "$origepi" ]                    && echo "need \$origepi as output to save!" && exit 1;
 [ -z "$expectedRestDicoms" ]         && echo "need \$expectedRestDicoms as dicom dir!" && exit 1;
 [ -z "$dcmdirs" -o ! -r "$dcmdirs" ] && echo "\$dcmdirs=root of subject dicoms ($dcmdirs) DNE!" && exit 1;
 
-dcmdirs=$dicomDir
-restdir=$(dirname $origepi)
 
 #### anatomical check
 # not the best place, but it's a place :)

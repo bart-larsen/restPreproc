@@ -118,8 +118,6 @@ cd ${subjRootDir}/${s}/
 
 mkdir $preprocversion
 
-# print script info (func defined in common.src.bash)
-printInfo > processing.info
 
 # pull in anatomical stuff, so it's in the same directory
 #ln -s ${subjRootDir}/${s}/anat/{mprage,aseg,warpcoef}* ${subjRootDir}/${s}/$preprocversion/
@@ -135,6 +133,8 @@ ln -s ${subjRootDir}/${s}/anat/* ${subjRootDir}/${s}/$preprocversion/
 #
 
 cd ${subjRootDir}/${s}/$preprocversion/
+# print script info (func defined in common.src.bash)
+printInfo > processing.info
 
 #CANNOT DEOBLIQUE BECAUSE it changes number of slices which messes up the physio stuff. 
 #3dWarp -deoblique -prefix rest_epi_RPI_do rest_epi_RPI+orig
@@ -293,8 +293,10 @@ rm resid_bp_b.nii.gz
 
 applywarp -i rest_preproc_native -r ~/standard/fsl_mni152/MNI152_T1_2mm.nii.gz -o rest_preproc_mni -w mprage_warpcoef	
 # add notes for this command
-add3dNote rest_preproc_native.nii.gz rest_preproc_mni.nii.gz \
+add3dNote rest_preproc_native.nii.gz rest_preproc_mni.nii* \
   "applywarp -i rest_preproc_native -r ~/standard/fsl_mni152/MNI152_T1_2mm.nii.gz -o rest_preproc_mni -w mprage_warpcoef"
 
+# in case we dont have gunzip compression, compress with afni (instead of gzip)
+[ -r rest_preproc_mni.nii ] && 3dcopy rest_preproc_mni.nii rest_preproc_mni.nii.gz
 #rm all_bet.nii.gz		
 # rest_preproc_mni is the functional file in MNI space
