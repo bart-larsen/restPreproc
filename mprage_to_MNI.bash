@@ -66,11 +66,11 @@ add3dNote aseg.mgz      aseg.nii.gz          '*RUN*' "mri_convert $FSDir/${s}/mr
 add3dNote brainmask.mgz mprage_bet_FS_RSP.nii.gz '*RUN*' "mri_convert $FSDir/${s}/mri/brainmask.mgz mprage_bet_FS_RSP.nii.gz"
 
 # flirt works a lot better if we are in RPI
-3dresample -orient RPI -inset mprage_FS_RSP.nii.gz -prefix mprage_RPI.nii.gz
-3dresample -orient RPI -inset mprage_bet_FS_RSP.nii.gz -prefix mprage_bet_FS_RPI.nii.gz
+3dresample -orient LPI -inset mprage_FS_RSP.nii.gz -prefix mprage_LPI.nii.gz
+3dresample -orient LPI -inset mprage_bet_FS_RSP.nii.gz -prefix mprage_bet_FS_LPI.nii.gz
 
 # this ugly bit allows us to leave other things untouched
-ln -s mprage_RPI.nii.gz mprage.nii.gz
+ln -s mprage_LPI.nii.gz mprage.nii.gz
 
 
 ### ALIGN TO MNI, takes 40min
@@ -99,7 +99,7 @@ $scriptdir/preprocessMprage-verbose -r MNI_2mm -n mprage.nii.gz -d n
 # move FSL out of the way, we'll be using freesurfer 
 # for the rest of this
 for f in mprage_bet.nii*; do [ -r $f ] && mv $f ${f/_bet/_bet_FSL}; done
-ln -s mprage_bet_FS_RPI.nii.gz mprage_bet.nii.gz
+ln -s mprage_bet_FS_LPI.nii.gz mprage_bet.nii.gz
 
 
 ##

@@ -11,3 +11,7 @@ rewardrest.cfg               : set FS,dcm dirs and epiorg name
 
 rest_preprocessMprage        : used by aarthi's
 
+
+output from this pipeline should be in parts directly compared to, e.g., 
+ skynet:/Volumes/Phillips/Rest/Subjects/10845/mni_AP_redo
+ wallace:/data/Luna1/Reward/Rest/10845_20100924/preproc_torque/
