@@ -111,6 +111,14 @@ fi
 
 cd ${subjRootDir}/${s}/
 
+#### exit with sucess if we've already run and have the last file
+if [ -z "$REDO" -a -r $preprocversion/rest_preproc_mni.nii.gz ]; then
+  echo "to REDO use: REDO=1 $0 $@ " 
+  echo "${subjRootDir}/${s}/$preprocversion completed $(sed -n '2p;2q' $preprocversion/processing.info)"
+  3dNotes $preprocversion/rest_preproc_mni.nii.gz
+  exit 0
+fi
+
 #### clean up previous 
 # remove if we want to redo
 [ -n "$REDO" -a -r $preprocversion ] && rm -r $preprocversion

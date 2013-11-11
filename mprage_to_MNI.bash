@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+env
+which mri_convert
+mri_convert --version
 set -xe
 # need:
 #   SUBJECT
@@ -44,10 +48,21 @@ OUTDIR=$(dirname $origmprage)
 #
 [ ! -d $FSDir/${s}/mri/ ] && echo "cannot find subjects FS $FSDir/${s}/mri/" && exit 1
 
-[ -r $OUTDIR -a -z "$REDO" ] && echo "$OUTDIR exists, use REDO to start again" && exit # this is okay, continue with other things
-[ -r $OUTDIR -a -n "$REDO" ] && echo "REMOVING: $OUTDIR" && rm -r $OUTDIR 
+## exit with sucess if we have already finished
+if [ -z "$REDO" -a -r $OUTDIR/NBT_erod+orig.HEAD ]; then
+  echo "to REDO use: REDO=1 $0 $@ " 
+  echo "$OUTDIR started $(sed -n '2p;2q' $OUTDIR/processing.txt)"
+  3dNotes $OUTDIR/mprage_warp_linear.nii.gz
+  exit 0
+else
+ echo "if redo wasn't set, we're setting it! NBT_erode+orig.HEAD is not in $OUTDIR"
+ REDO=1 # auto redo incomplete peps
+fi
 
-mkdir $OUTDIR # not -p because we have bigger problems if subjectdir DNE
+#[ -r $OUTDIR -a -z "$REDO" ] && echo "$OUTDIR exists, use REDO to start again" && exit 1 # this is okay, continue with other things
+[ -r $OUTDIR -a -n "$REDO" ] && echo "REMOVING: $OUTDIR" && rm -rf $OUTDIR 
+
+mkdir -p $OUTDIR # -p here but  we have bigger problems if subjectdir DNE
 
 cd $OUTDIR
 
@@ -61,9 +76,18 @@ which preprocessMprage  >> processing.txt
 
 ### Grab structural stuff from FreeSurfer
 # orient to RPI, comes in as RSP 
-add3dNote T1.mgz        mprage_FS_RSP.nii.gz  '*RUN*' "mri_convert $FSDir/${s}/mri/T1.mgz  mprage_FS_RSP.nii.gz"
-add3dNote aseg.mgz      aseg.nii.gz          '*RUN*' "mri_convert $FSDir/${s}/mri/aseg.mgz aseg.nii.gz"
-add3dNote brainmask.mgz mprage_bet_FS_RSP.nii.gz '*RUN*' "mri_convert $FSDir/${s}/mri/brainmask.mgz mprage_bet_FS_RSP.nii.gz"
+## this is from most recent freesurfer
+add3dNote $FSDir/${s}/mri/T1.mgz        mprage_FS_RSP.nii.gz     '*RUN*' "mri_convert $FSDir/${s}/mri/T1.mgz  mprage_FS_RSP.nii.gz"
+add3dNote $FSDir/${s}/mri/aseg.mgz      aseg.nii.gz              '*RUN*' "mri_convert $FSDir/${s}/mri/aseg.mgz aseg.nii.gz"
+add3dNote $FSDir/${s}/mri/brainmask.mgz mprage_bet_FS_RSP.nii.gz '*RUN*' "mri_convert $FSDir/${s}/mri/brainmask.mgz mprage_bet_FS_RSP.nii.gz"
+
+## but we want to compare pipelines -- so use old stuff on skynet
+#scp skynet:/Volumes/Phillips/Rest/FS_Subjects_AP/${s%%_*}/mri/{T1,aseg,brainmask}.mgz ./
+#add3dNote T1.mgz        mprage_FS_RSP.nii.gz     '*RUN*' "mri_convert T1.mgz  mprage_FS_RSP.nii.gz"
+#add3dNote aseg.mgz      aseg.nii.gz              '*RUN*' "mri_convert aseg.mgz aseg.nii.gz"
+#add3dNote brainmask.mgz mprage_bet_FS_RSP.nii.gz '*RUN*' "mri_convert brainmask.mgz mprage_bet_FS_RSP.nii.gz"
+#echo "FS from /Volumes/Phillips/Rest/FS_Subjects_AP/${s%%_*}/mri/{T1,aseg,brainmask}.mgz " > FSNOTONWALLACE.txt
+
 
 # flirt works a lot better if we are in RPI
 3dresample -orient LPI -inset mprage_FS_RSP.nii.gz -prefix mprage_LPI.nii.gz

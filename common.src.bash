@@ -32,9 +32,11 @@ esac
 function add3dNote {
   prev=$1; shift; new=$1;shift; note="$@"
 
+  pwd
+
   prompt="[$(whoami)@$(hostname): $(date)]"
 
-  prevnote="$(3dNotes $prev | sed '1,2d')";
+  prevnote="$(3dNotes $prev 2>/dev/null | sed '1,2d' || echo '')";
   [ -n "$prevnote" ] && prevnote="$prevnote\n"
 
   # also run the presumably fsl command
@@ -42,9 +44,11 @@ function add3dNote {
   if [ "$1" == "*RUN*" ]; then
    shift
    note="$@"
-   $@
+   eval $@
   fi
   
+  ls $new 
+
   3dNotes -HH "$prevnote$prompt $note" $new
 }
 

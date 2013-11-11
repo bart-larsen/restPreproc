@@ -15,3 +15,7 @@ rest_preprocessMprage        : used by aarthi's
 output from this pipeline should be in parts directly compared to, e.g., 
  skynet:/Volumes/Phillips/Rest/Subjects/10845/mni_AP_redo
  wallace:/data/Luna1/Reward/Rest/10845_20100924/preproc_torque/
+
+to test this code against previously published data
+check e.g. skynet/data/10845/diff/
+      (via skynet/data/{get,compare}.bash)

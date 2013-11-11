@@ -55,3 +55,4 @@ fi
 # not the best place, but it's a place :)
 [ ! -r $origmprage ] && echo "no mprage!!! run qsub mprage_to_MNI.bash -Vv SUBJECT=$SUBJECT,VISIT=$VISIT" && exit 1
 
+echo "rest image is read"
