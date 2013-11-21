@@ -30,8 +30,10 @@ dcmdirs=$dicomDir
 # convert epi from dicoms if we need it
 if [ ! -r $origepi ]; then
  # find a rest directory and make sure it has enough dcms
- restdcmdir=$(find -L $dcmdirs -iname '*rest*' -type d | tail -n1)
- [ -z "$restdcmdir"  ] && echo "no dcmdir for $s!" && exit 1
+ #restdcmdir=$(find -L $dcmdirs -iname '*rest*' -type d | tail -n1)
+ # restdcmdir is found by rewardrest.cfg -- which should've been run already
+
+ [ -z "$restdcmdir"  ] && echo "no dcmdir ($dcmdirs -> $restdcmdir) for $s!" && exit 1
  [ $(ls $restdcmdir/MR* | wc -l ) -ne $expectedRestDicoms ] && echo "$s: $restdcmdir doesnt have 200 MR* dcms!" && exit 1
 
  [ ! -d $restdir ] && mkdir -p $restdir

@@ -60,6 +60,9 @@ set -xe
 ## validate all the inputs
 ## N.B. we require a physio input file, but it may not be used by afni_restproc
 for varname in sid sdir t1 t2 physio; do
+  # ignore physio
+  [ $varname = physio ] && echo "not requring physio" && continue
+
   # check for defined inputs
   [ -z "${!varname}" ] && echo "Requires -$varname" && exit 1
   [ "$varname" = "sid" ] && continue # sid doesn't have to have directory
