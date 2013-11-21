@@ -6,7 +6,13 @@ dicomRootDir="/data/Luna1/Raw/MRRC_Org/"
 # SUBJECT=10152 VISIT=20111123 ~/src/restPreproc/rest_preproc_torque
 
 #for dir in /data/Luna1/Raw/MRRC_Org/10128/20080925/ /data/Luna1/Raw/MRRC_Org/10152/20100514; do
-for dir in $(find  $dicomRootDir/ -maxdepth 2 -type d -name '[1-2][0-9][0-9][0-9][0-9][0-9][0-9][0-9]' ); do
+#for dir in $(find  $dicomRootDir/ -maxdepth 2 -type d -name '[1-2][0-9][0-9][0-9][0-9][0-9][0-9][0-9]' ); do
+if [ -z "$1" ]; then
+ runon="$(find  $dicomRootDir/ -maxdepth 2 -type d -name '[1-2][0-9][0-9][0-9][0-9][0-9][0-9][0-9]' )"
+else
+ runon=/data/Luna1/Raw/MRRC_Org/${1//_/\/}
+fi
+for dir in $runon; do
  #subj_date=$(basename $dir)
  #subj=${subj_date%%_*}
  #date=${subj_date##*_}
