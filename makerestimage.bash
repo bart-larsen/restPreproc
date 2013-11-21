@@ -42,8 +42,12 @@ if [ ! -r $origepi ]; then
 	    -sort_by_acq_time \
 	    -gert_create_dataset \
 	    -gert_to3d_prefix $(basename ${origepi%%+orig.HEAD*}) \
-	    -quit 
+	    -quit  | tee  $restdir/$s.Dimon.$(date +%F).log
 	    #-gert_write_as_nifti \
+
+
+ mysql -h lncddb.acct.upmchs.net -u lncd --password=B@ngal0re lunadb -Be "select * from tsubjectinfo where lunaid = ${SUBJECT}" | tee $sid.subjectinfo.txt
+ mysql -h lncddb.acct.upmchs.net -u lncd --password=B@ngal0re lunadb -Be "select date_format(vt.VisitDate,'%Y%m%d') as scandate, vl.*, vt.* from tvisittasks as vt join tvisitlog as vl on vl.visitid=vt.visitid having vt.lunaid = $SUBJECT and scandate = $VISIT"| tee $sid.visitinfo.txt
  cd -
  #mv $(basename $origepi)* $(dirname $origepi)/Dimon_$(basename $origepi)
 

@@ -16,28 +16,25 @@
 #PBS -q batch
 #
 #
-#2013-11-21 WF
-# setup for afni_preproc for power neuroimage 2012 (no global signal regression)
-# copy of script validated by SM on skynet:/Volumes/Phillips/Rest/rest_scripts/rest_preproc_transition
+# 2013-11-21 WF
+#   setup for afni_preproc for power neuroimage 2012 (no global signal regression)
+#   copy of script validated by SM on skynet:/Volumes/Phillips/Rest/rest_scripts/rest_preproc_transition
 
 # get script info -- log to file
 scriptdir=$(cd $(dirname $0);pwd)              
+scriptname=$(basename $0)
 # if torque has copied the script, we need the hardcoded path
-[[ $scriptdir =~ spool ]] && scriptdir="/home/foranw/src/restPreproc"
-scriptdateversion="$(perl -slane 'if(m/\d{4}-\d{2}-d{2}/){print $&}' $scriptdir/$(basename $0))"
+[[ $scriptdir =~ spool ]] && scriptdir="/home/foranw/src/restPreproc" && scriptname="qsub_afni_restproc.bash"
+scriptdateversion="$(perl -slane 'print $& and exit if m/\d{4}-?\d{2}-?\d{2}/'  $scriptdir/$scriptname)"
 scriptgitversion="$(cd $scriptdir; git log|sed 1q)"
 
-
-
-# ./onlyafniproc.bash -sid 10152_20100514 -sdir /Volumes/Phillips/Rest_Reward/10152_20100514/ -aseg /Volumes/Phillips/Rest_Reward/10152_20100514/anat/aseg.mgz -t1 /Volumes/Phillips/Rest_Reward/10152_20100514/anat/T1.mgz -t2 /Volumes/Phillips/Rest_Reward/10152_20100514/rest/all.nii.gz -physio /Volumes/Phillips/Rest/physio1D/10152_RetroTS.slibase.1D
-### OR
-# qsub onlyafniproc.bash -vV sid="10152_20100514",sdir="/data/Luna1/Reward/Rest/10152_20100514/",aseg="/data/Luna1/Reward/FS_Subjects/10152_20100514/mri/aseg.mgz",t1="/data/Luna1/Reward/FS_Subjects/10152_20100514/mri/T1.mgz",t2="/data/Luna1/Reward/Rest/10152_20100514/Dimon_rest.nii.gz.nii.gz",physio="/data/Luna1/Reward/Physio/10152/20100514/rest_21_RetroTS.slibase.1D"
 
 ## Where to save output
 # e.g. /data/Luna1/Reward/Rest/10152_20100514/afni_restproc/power_nogsr
 afnidirname=afni_restproc
 innerdir=power_nogsr
 
+## if we are given options on the command line (not torque)
 while [ -n "$1" ]; do
  case $1 in 
   -sdir)      sdir=$2;        shift 2;;  # subject's folder -- base directory for preprocessing output
@@ -57,8 +54,11 @@ while [ -n "$1" ]; do
  esac
 done
 
+## start recording whats going on
 set -xe
 
+## validate all the inputs
+## N.B. we require a physio input file, but it may not be used by afni_restproc
 for varname in sid sdir t1 t2 physio; do
   # check for defined inputs
   [ -z "${!varname}" ] && echo "Requires -$varname" && exit 1
@@ -74,17 +74,15 @@ for varname in sid sdir t1 t2 physio; do
   [ ! -r ${!varname} ] && echo "could not read $varname (${!varname}), exiting" && exit 1;
 done
 
-
-[  -r $sdir/$afnidirname/$innerdir && -n "$REDO" ] && rm -r $sdir/$afnidirname/$innerdir
+# only REDO if we are told to, otherwise error out
+[  -r $sdir/$afnidirname/$innerdir -a -n "$REDO" ] && rm -r $sdir/$afnidirname/$innerdir
 [  -r $sdir/$afnidirname/$innerdir ] && echo "ALREADY RUN!" && exit 1
 
-mkdir -p $sdir/$afnidirname
+[ ! -d  $sdir/$afnidirname ] && mkdir -p $sdir/$afnidirname
 cd $sdir/$afnidirname
 
-## TODO: pull sql info
-
 ## write to processing log (script,time,version,git version)
-echo -e "$(date +%F\|%H:%M)\t$innerdir\tstart\t$scriptdir/$(basename $0) ($scriptdateversion/$scriptgitversion)" >> $sdir/processing.log
+echo -e "$(date +%F\|%H:%M)\tafni_proc\t$innerdir\tstart\t$scriptdateversion/$scriptgitversion" >> $sdir/processing.log
 
 #### ACTUALL RUN
 case $innerdir in
@@ -93,7 +91,7 @@ case $innerdir in
 	-despike off \
 	-aseg $aseg \
 	-anat $t1 \
-	-epi  $t2 \
+	-epi  ${t2%%.HEAD} \
 	-script $innerdir.tcsh \
 	-dest $innerdir \
 	-prefix pm \
@@ -112,14 +110,14 @@ case $innerdir in
 	-censorright 2 \
 	-fdlimit 0.5 \
 	-dvarslimit 5 \
-	-modenorm  | tee ${innerdir}_$sid.log ;;
+	-modenorm 2>&1 | tee ${innerdir}_$sid.log ;;
    *)
     echo unknown $innerdir;
     exit 1;;
 esac
 
 # all went well
-echo -e "$(date +%F\|%H:%M)\t$innerdir\tfinish\t$scriptdir/$(basename $0) ($scriptdateversion/$scriptgitversion)" >> $sdir/processing.log
+echo -e "$(date +%F\|%H:%M)\tafni_proc\t$innerdir\tfinish\t$scriptdateversion/$scriptgitversion" >> $sdir/processing.log
 exit 0
 
 ### LEFTOVERs
