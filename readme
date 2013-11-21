@@ -4,3 +4,14 @@ run with queallAfni_restproc.bash
 can be run for an individual without batch processing:
  see qsub_afni_restproc.bash -h
 
+TO MODIFY:
+ you will likely want to change the afni_restproc.py settings (in qsub_afni_restproc.bash)
+  1. change innerdir value
+  2. copy afni_proc and add innerdir case statement
+  3. change parts of afni_restproc (e.g. add gsr, add physio)
+  4. add and commit your chages
+  -- this stops us from having so many scripts (e.g. rest_preproc_v6_redo_SM)
+  -- and makes all changes trackabe in git
+
+NOTES:
+ * inspecting $(which afni_restproc.py) shows AFNI always uses TT_N27+tlrc, avg of 27 Collin brains

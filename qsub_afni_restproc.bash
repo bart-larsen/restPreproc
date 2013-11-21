@@ -25,7 +25,7 @@ scriptdir=$(cd $(dirname $0);pwd)
 # if torque has copied the script, we need the hardcoded path
 [[ $scriptdir =~ spool ]] && scriptdir="/home/foranw/src/restPreproc"
 scriptdateversion="$(perl -slane 'if(m/\d{4}-\d{2}-d{2}/){print $&}' $scriptdir/$(basename $0))"
-scriptgitversion="$(cd $scriptdir; git log|sed 1d)"
+scriptgitversion="$(cd $scriptdir; git log|sed 1q)"
 
 
 
@@ -84,16 +84,18 @@ cd $sdir/$afnidirname
 ## TODO: pull sql info
 
 ## write to processing log (script,time,version,git version)
-echo -e "$(date +%F\|%H:%M)\tstart\t$scriptdir/$(basename $0) ($scriptdateversion/$scriptgitversion)" >> $sdir/processing.log
+echo -e "$(date +%F\|%H:%M)\t$innerdir\tstart\t$scriptdir/$(basename $0) ($scriptdateversion/$scriptgitversion)" >> $sdir/processing.log
 
 #### ACTUALL RUN
-afni_restproc.py \
+case $innerdir in
+ power_nogsr)
+   afni_restproc.py \
 	-despike off \
 	-aseg $aseg \
 	-anat $t1 \
 	-epi  $t2 \
-	-script power_nogsr.tcsh \
-	-dest power_nogsr \
+	-script $innerdir.tcsh \
+	-dest $innerdir \
 	-prefix pm \
 	-tlrc \
 	-dvarscensor \
@@ -110,11 +112,14 @@ afni_restproc.py \
 	-censorright 2 \
 	-fdlimit 0.5 \
 	-dvarslimit 5 \
-	-modenorm  | tee power_nogsr_$sid.log
-
+	-modenorm  | tee ${innerdir}_$sid.log ;;
+   *)
+    echo unknown $innerdir;
+    exit 1;;
+esac
 
 # all went well
-echo -e "$(date +%F\|%H:%M)\tfinish\t$scriptdir/$(basename $0) ($scriptdateversion/$scriptgitversion)" >> $sdir/processing.log
+echo -e "$(date +%F\|%H:%M)\t$innerdir\tfinish\t$scriptdir/$(basename $0) ($scriptdateversion/$scriptgitversion)" >> $sdir/processing.log
 exit 0
 
 ### LEFTOVERs

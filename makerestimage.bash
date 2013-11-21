@@ -19,9 +19,10 @@ dcmdirs=$dicomDir
 # these should all be source from cfg file which would be loaded by common.src.bash 
 [ -z "$s" ]                          && echo "need \$s as subject[_date]!" && exit 1;
 [ -z "$origepi" ]                    && echo "need \$origepi as output to save!" && exit 1;
-[ -z "$origmprage" ]                 && echo "need \$origmprage as output to save!" && exit 1;
 [ -z "$expectedRestDicoms" ]         && echo "need \$expectedRestDicoms as dicom dir!" && exit 1;
 [ -z "$dcmdirs" -o ! -r "$dcmdirs" ] && echo "\$dcmdirs=root of subject dicoms ($dcmdirs) DNE!" && exit 1;
+# dont care about mprage, using T1 from FreeSurfer
+#[ -z "$origmprage" ]                 && echo "need \$origmprage as output to save!" && exit 1;
 
 
 
