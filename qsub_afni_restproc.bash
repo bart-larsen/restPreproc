@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+#
+# ==== $0 ====
+#   run afni_restproc in subject_visit directory struct on wallace
+#   normally
+#     run with wrapper queallAfni_restproc.bash 
+#     with settings from e.g. rewardrest.cfg
+#  
+#END
+#
 # PBS SETTINGS:
 #   three cpus for 5 hours
 #   afni will eat all cpus for only some bits of streem
@@ -18,7 +27,6 @@ scriptdir=$(cd $(dirname $0);pwd)
 scriptdateversion="$(perl -slane 'if(m/\d{4}-\d{2}-d{2}/){print $&}' $scriptdir/$(basename $0))"
 scriptgitversion="$(cd $scriptdir; git log|sed 1d)"
 
-set -xe
 
 
 # ./onlyafniproc.bash -sid 10152_20100514 -sdir /Volumes/Phillips/Rest_Reward/10152_20100514/ -aseg /Volumes/Phillips/Rest_Reward/10152_20100514/anat/aseg.mgz -t1 /Volumes/Phillips/Rest_Reward/10152_20100514/anat/T1.mgz -t2 /Volumes/Phillips/Rest_Reward/10152_20100514/rest/all.nii.gz -physio /Volumes/Phillips/Rest/physio1D/10152_RetroTS.slibase.1D
@@ -32,20 +40,24 @@ innerdir=power_nogsr
 
 while [ -n "$1" ]; do
  case $1 in 
-  -sdir)      sdir=$2;        shift 2;;  # subject's folder -- where to save mprage/ and rest/
+  -sdir)      sdir=$2;        shift 2;;  # subject's folder -- base directory for preprocessing output
   -sid)       sid=$2;         shift 2;;  # subject id       -- where to find FS stuff, what to prefix files
-  -t1)        t1=$2;          shift 2;;  # t1 image, mgz format (/Volumes/Serena/Rest/FS_Subjects/${sid}/mri/T1.mgz)
-  -aseg)      aseg=$2;        shift 2;;  # FS segmentation, mgz format (/Volumes/Serena/Rest/FS_Subjects/${sid}/mri/aseg.mgz) 
-  -t2)        t2=$2;          shift 2;;  # functional image, nii format
-  -physio)    physio=$2;      shift 2;;  # location of physio file
-  *) echo -e "[Unrecognized option '$1']"; 
+  -t1)        t1=$2;          shift 2;;  # t1 image, mgz format (/data/Luna1/{TASK}/FS_Subjects/${sid}/mri/T1.mgz)
+  -aseg)      aseg=$2;        shift 2;;  # FS segmentation, mgz format (/data/Luna1/{TASK}/FS_Subjects/${sid}/mri/aseg.mgz) 
+  -t2)        t2=$2;          shift 2;;  # functional image, BRIK format
+  -physio)    physio=$2;      shift 2;;  # location of physio file (RetroTS)
+  *) 
      sed -ne "s:\$0:$0:g;s/# //p;/END/q" $0;                             # print header
+     echo " USAGE: ";
      perl -lne 'print "\t$1:\t$2" if m/^\s+(-.*)\).*shift.*# (.*)$/' $0; # print options
+     echo ;
+     echo -e "[Unrecognized option '$1']"; 
      echo ;
      exit 1;;
  esac
 done
 
+set -xe
 
 for varname in sid sdir t1 t2 physio; do
   # check for defined inputs
