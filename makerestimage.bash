@@ -50,6 +50,8 @@ if [ ! -r $origepi ]; then
 
  mysql -h lncddb.acct.upmchs.net -u lncd --password=B@ngal0re lunadb -Be "select * from tsubjectinfo where lunaid = ${SUBJECT}" | tee $sid.subjectinfo.txt
  mysql -h lncddb.acct.upmchs.net -u lncd --password=B@ngal0re lunadb -Be "select date_format(vt.VisitDate,'%Y%m%d') as scandate, vl.*, vt.* from tvisittasks as vt join tvisitlog as vl on vl.visitid=vt.visitid having vt.lunaid = $SUBJECT and scandate = $VISIT"| tee $sid.visitinfo.txt
+ mysql -h lncddb.acct.upmchs.net -u lncd --password=B@ngal0re lunadb -NBe "select datediff(vt.VisitDate,si.DateOfBirth)/365.25 as age from tvisittasks as vt left join tsubjectinfo as si on si.LunaID=vt.LunaID where si.LunaID = $SUBJECT and date_format(vt.VisitDate,'%Y%m%d') = '$VISIT'" | tee $sid.age.txt
+
  cd -
  #mv $(basename $origepi)* $(dirname $origepi)/Dimon_$(basename $origepi)
 

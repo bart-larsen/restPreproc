@@ -11,7 +11,7 @@
 # PBS SETTINGS:
 #   three cpus for 5 hours
 #   afni will eat all cpus for only some bits of streem
-#PBS -l ncpus=3
+#PBS -l ncpus=1
 #PBS -l walltime=5:00:00
 #PBS -q batch
 #
@@ -32,7 +32,7 @@ scriptgitversion="$(cd $scriptdir; git log|sed 1q)"
 ## Where to save output
 # e.g. /data/Luna1/Reward/Rest/10152_20100514/afni_restproc/power_nogsr
 afnidirname=afni_restproc
-innerdir=power_nogsr
+runtype=power_nogsr
 
 ## if we are given options on the command line (not torque)
 while [ -n "$1" ]; do
@@ -43,6 +43,7 @@ while [ -n "$1" ]; do
   -aseg)      aseg=$2;        shift 2;;  # FS segmentation, mgz format (/data/Luna1/{TASK}/FS_Subjects/${sid}/mri/aseg.mgz) 
   -t2)        t2=$2;          shift 2;;  # functional image, BRIK format
   -physio)    physio=$2;      shift 2;;  # location of physio file (RetroTS)
+  -runtype)   runtype=$2;   shift 2;;  # they processing stream to use, currently (20131122) only "power_nogsr"
   *) 
      sed -ne "s:\$0:$0:g;s/# //p;/END/q" $0;                             # print header
      echo " USAGE: ";
@@ -54,14 +55,27 @@ while [ -n "$1" ]; do
  esac
 done
 
-## start recording whats going on
+## start recording whats going on, and die if something goes wrong
 set -xe
+
+# this is cludgy. We want to processes t2 within gromit run if we are using torque
+# origepi SUBJECT and VISIT are in the env when this is called from torque
+# otherwise this bit is skipped
+if [ -n "$origepi" -a ! -r "$origepi" ]; then
+  SUBJECT=${sid%%_*}
+  VISIT=${sid##*_}
+  echo subject visit: $SUBJECT $VISIT
+  # FSDIR sdir origepi physiofile restdicomdir
+  source $scriptdir/rewardrest.cfg 
+  # get restepi if needed using SUBJECT and VISIT, saving using sid
+  source $scriptdir/makerestimage.bash
+fi
 
 ## validate all the inputs
 ## N.B. we require a physio input file, but it may not be used by afni_restproc
 for varname in sid sdir t1 t2 physio; do
   # ignore physio
-  [ $varname = physio ] && echo "not requring physio" && continue
+  [ $varname = physio ] && echo "not requring physio, no checks" && continue
 
   # check for defined inputs
   [ -z "${!varname}" ] && echo "Requires -$varname" && exit 1
@@ -78,25 +92,25 @@ for varname in sid sdir t1 t2 physio; do
 done
 
 # only REDO if we are told to, otherwise error out
-[  -r $sdir/$afnidirname/$innerdir -a -n "$REDO" ] && rm -r $sdir/$afnidirname/$innerdir
-[  -r $sdir/$afnidirname/$innerdir ] && echo "ALREADY RUN!" && exit 1
+[  -r $sdir/$afnidirname/$runtype -a -n "$REDO" ] && rm -r $sdir/$afnidirname/$runtype
+[  -r $sdir/$afnidirname/$runtype ] && echo "ALREADY RUN!" && exit 1
 
 [ ! -d  $sdir/$afnidirname ] && mkdir -p $sdir/$afnidirname
 cd $sdir/$afnidirname
 
 ## write to processing log (script,time,version,git version)
-echo -e "$(date +%F\|%H:%M)\tafni_proc\t$innerdir\tstart\t$scriptdateversion/$scriptgitversion" >> $sdir/processing.log
+echo -e "$(date +%F\|%H:%M)\tafni_proc\t$runtype\tstart\t$scriptdateversion/$scriptgitversion" >> $sdir/processing.log
 
 #### ACTUALL RUN
-case $innerdir in
+case $runtype in
  power_nogsr)
    afni_restproc.py \
 	-despike off \
 	-aseg $aseg \
 	-anat $t1 \
 	-epi  ${t2%%.HEAD} \
-	-script $innerdir.tcsh \
-	-dest $innerdir \
+	-script $runtype.tcsh \
+	-dest $runtype \
 	-prefix pm \
 	-tlrc \
 	-dvarscensor \
@@ -113,14 +127,17 @@ case $innerdir in
 	-censorright 2 \
 	-fdlimit 0.5 \
 	-dvarslimit 5 \
-	-modenorm 2>&1 | tee ${innerdir}_$sid.log ;;
+	-modenorm 2>&1 | tee ${runtype}_$sid.log ;;
    *)
-    echo unknown $innerdir;
+    echo unknown $runtype;
     exit 1;;
 esac
 
+# and now also get the cor mat
+3dROIstats -mask $scriptdir/bb244Mask+tlrc $runtype/pm.cleanEPI+tlrc  > $runtype/${sid}_roistats.txt
+
 # all went well
-echo -e "$(date +%F\|%H:%M)\tafni_proc\t$innerdir\tfinish\t$scriptdateversion/$scriptgitversion" >> $sdir/processing.log
+echo -e "$(date +%F\|%H:%M)\tafni_proc\t$runtype\tfinish\t$scriptdateversion/$scriptgitversion" >> $sdir/processing.log
 exit 0
 
 ### LEFTOVERs
