@@ -3,9 +3,9 @@
 # call with REDO=1 to redo everyone
 
 scriptdir=$(cd $(dirname $0); pwd);
-oldyoungsubjects=$( (head -n3 $scriptdir/subj_date_age.txt; tail -n3 $scriptdir/subj_date_age.txt) | awk '{print $1 "_" $2}'   )
+oldyoungsubjects=$( (head -n3 $scriptdir/txt/subj_date_age.txt; tail -n3 $scriptdir/txt/subj_date_age.txt) | awk '{print $1 "_" $2}'   )
 
-for sid in $(find /data/Luna1/Raw/MRRC_Org/ -maxdepth 2 -type d -iname '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'); do
+for sid in $(find -L /data/Luna1/Raw/MRRC_Org/ -maxdepth 2 -type d -iname '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'); do
  sid=$(basename $(dirname $sid))_$(basename $sid)
 #for sid in $oldyoungsubjects; do
 #for sid in 10845_20100924 10152_20100514; do
