@@ -1,3 +1,5 @@
+== PREPROCESS ==
+
 run with queallAfni_restproc.bash
  - runs qsub_afni_restproc.bash via qsub/torque
 
@@ -15,3 +17,12 @@ TO MODIFY:
 
 NOTES:
  * inspecting $(which afni_restproc.py) shows AFNI always uses TT_N27+tlrc, avg of 27 Collin brains
+
+
+== DATA ==
+transfer from wallace, see 99_transferProcessed.bash
+
+== PREPROC ANALYSIS  ==
+e.g. how many subjects, who
+
+generate data (in txt/) with analysis/numVolFDthres.bash

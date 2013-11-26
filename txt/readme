@@ -1,0 +1,14 @@
+bb244.txt                                   WashU ROIs
+
+subj_date_age.txt                           Original Subjects (Aarthi's)
+
+rest_subs_ages_motion(11_2013).csv          New Subjects (Scott's list)
+rest_subs_ages_motion_frames(11_2013).csv   New Subjects (Scott's list)
+
+SubjectTimeAgeSexFD.txt                     subject info:  timepoint age sex and clean (preproc'ed) volume count
+SubjectTimeAgeSexFD.t1.txt                  subject info for only first visit (timepoint 1)
+
+files.txt                                   files of interest (to transfer), t1 only
+t1.txt                                      timepoint one file location
+
+times                                       how long it took afni proc to run with one cpu

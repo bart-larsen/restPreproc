@@ -1,0 +1,5 @@
+# get a list of all subjects by time point and
+numVolFDthres.bash -> ../txt/SubjectTimeAgeSexFD*txt
+
+# number of subjects excluded by various thresholds (after TRs fd>.5 dropped)
+subjStats.R        -> imgs/FD@.5_percentDropouts.png
