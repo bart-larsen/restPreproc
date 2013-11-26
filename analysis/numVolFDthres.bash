@@ -11,7 +11,11 @@ ls -d 1*_* --color=no | perl -F"_" -slane 'push @{$a{$F[0]}}, $F[1]; END{for my 
   remaingvols=$(3dinfo -nv $sid/afni_restproc/power_nogsr/pm.cleanEPI+tlrc.HEAD)
   age=$(cat $sid/$sid.age.txt)
   sex=$(cat $sid/$sid.sex.txt)
-  echo $sid $age $tpoint $sex $remaingvols $origvols| tr ' ' "	"
+  [ -z "$age" ] && age=0;
+  [ -z "$sex" ] && sex=?;
+  [ $origvols = "NO-DSET" ] && origvols=NA
+  [ $remaingvols = "NO-DSET" ] && remaingvols=NA
+  echo $sid $age $tpoint $sex $remaingvols $origvols| sed 's/ /	/g'
   #fdfile=$sid/afni_restproc/power_nogsr/tmp/${sid}_restepi.float_tsh_vr_motion.tcat.deltamotion.FD.1D
   #lt1vols=$(perl -slane '$i++ if $_ < .1; END{print $i}' $fdfile)
   #lt2vols=$(perl -slane '$i++ if $_ < .2; END{print $i}' $fdfile)
@@ -21,4 +25,4 @@ ls -d 1*_* --color=no | perl -F"_" -slane 'push @{$a{$F[0]}}, $F[1]; END{for my 
   #echo $sid $age $sex $remaingvols $lt1vols $lt2vols $lt3vols $lt4vols $lt5vols $remaingvols $origvols| tr ' ' "	"
 done | tee -a $outputfile
 
-grep t1 $outputfile > ${outputfile/.txt/.t1.txt}
+grep '^sid\|t1' $outputfile > ${outputfile/.txt/.t1.txt}
