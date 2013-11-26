@@ -21,3 +21,4 @@ ls -d 1*_* --color=no | perl -F"_" -slane 'push @{$a{$F[0]}}, $F[1]; END{for my 
   #echo $sid $age $sex $remaingvols $lt1vols $lt2vols $lt3vols $lt4vols $lt5vols $remaingvols $origvols| tr ' ' "	"
 done | tee -a $outputfile
 
+grep t1 $outputfile > ${outputfile/.txt/.t1.txt}
