@@ -1,5 +1,8 @@
-# either -sid and -query
-# or no switches
+# run like 
+#  DBsubjinfo.bash 11178_20131111 age
+# or -- to get everyone's age and sex into a file:
+#   for d in RewardRest/*_*; do b=$(basename $d); for t in sex age; do f=$d/$b.$t.txt; [ ! -r $f -o $(cat $f| wc -l) -lt 1 ] && ./DBsubjinfo.bash $b $t |tee $f; done; done
+#
 sid=$1
 querytype=$2
 
