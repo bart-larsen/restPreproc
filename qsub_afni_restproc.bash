@@ -32,7 +32,7 @@ scriptgitversion="$(cd $scriptdir; git log|sed 1q)"
 ## Where to save output
 # e.g. /data/Luna1/Reward/Rest/10152_20100514/afni_restproc/power_nogsr
 afnidirname=afni_restproc
-runtype=power_nogsr
+runtype=power_nogsr_mni
 
 ## if we are given options on the command line (not torque)
 while [ -n "$1" ]; do
@@ -104,6 +104,8 @@ echo -e "$(date +%F\|%H:%M)\tafni_proc\t$runtype\tstart\t$scriptdateversion/$scr
 #### ACTUALL RUN
 case $runtype in
  power_nogsr)
+   # if we want to use MNI we need to replace the @auto_tlrc TT_N27+tlrc with MNI_avg152T1+tlrc
+   # @auto_tlrc -base MNI_avg152T1+tlrc -input T1+orig
    afni_restproc.py \
 	-despike off \
 	-aseg $aseg \
@@ -111,7 +113,7 @@ case $runtype in
 	-epi  ${t2%%.HEAD} \
 	-script $runtype.tcsh \
 	-dest $runtype \
-	-prefix pm \
+	-prefix pmmni \
 	-tlrc \
 	-dvarscensor \
 	-episize 3 \
@@ -127,14 +129,58 @@ case $runtype in
 	-censorright 2 \
 	-fdlimit 0.5 \
 	-dvarslimit 5 \
-	-modenorm 2>&1 | tee ${runtype}_$sid.log ;;
+	-modenorm 2>&1 | tee ${runtype}_$sid.log 
+    # and now also get the cor mat
+    3dROIstats -mask $scriptdir/masks/bb264Mask_N27_3x3x3+tlrc $runtype/pm.cleanEPI+tlrc  > $runtype/${sid}_264roistats.txt
+    # for f in /data/Luna1/Reward/Rest/*/afni_restproc/power_nogsr/pm.cleanEPI+tlrc.HEAD; do  sid=$(echo $f|cut -f6 -d/); 3dROIstats -mask masks/bb264Mask_N27_3x3x3+tlrc $f > $(dirname $f)/${sid}_264roistats.txt; echo "$sid done"; done
+    
+    ;;
+        
+ power_nogsr_mni)
+   # same as power_nogsr but we use an MNI template
+   pfix=pmmni
+   afni_restproc.py \
+	-despike off \
+	-aseg $aseg \
+	-anat $t1 \
+	-epi  ${t2%%.HEAD} \
+	-script $runtype.tcsh \
+	-dest $runtype \
+	-prefix $pfix \
+	-tlrc \
+	-dvarscensor \
+	-episize 3 \
+	-dreg \
+	-smoothfirst \
+	-smoothrad 6 \
+	-smoothtogether \
+	-bandpass \
+	-includebrain \
+	-polort 0 \
+	-globalwm \
+	-censorleft 1 \
+	-censorright 2 \
+	-fdlimit 0.5 \
+	-dvarslimit 5 \
+        -exec off \
+	-modenorm 2>&1 | tee ${runtype}_$sid.log 
+    
+    pwd; ls
+    cd $runtype
+    pwd; ls
+    # we want to use MNI
+    sed -ie 's/TT_N27/MNI_caez_N27/g' $runtype.tcsh
+
+    # run!
+    tcsh $runtype.tcsh
+    # do roi stats
+    3dROIstats -mask $scriptdir/masks/bb264Mask_MNI_3x3x3+tlrc $pfix.cleanEPI+tlrc  > ${sid}_264roistats.txt
+    ;; 
+
    *)
     echo unknown $runtype;
     exit 1;;
 esac
-
-# and now also get the cor mat
-3dROIstats -mask $scriptdir/bb244Mask+tlrc $runtype/pm.cleanEPI+tlrc  > $runtype/${sid}_roistats.txt
 
 # all went well
 echo -e "$(date +%F\|%H:%M)\tafni_proc\t$runtype\tfinish\t$scriptdateversion/$scriptgitversion" >> $sdir/processing.log
