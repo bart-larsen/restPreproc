@@ -31,7 +31,9 @@ for sid in $(find -L /data/Luna1/Raw/MRRC_Org/ -maxdepth 2 -type d -iname '[0-9]
   export SUBJECT VISIT origepi 
 
   # qsub can take care of this, but it'll write a log file. this is easier
-  [ -z "$REDO" -a -r $sdir/afni_restproc/power_nogsr/pm.cleanEPI+tlrc.HEAD ] && echo "already done, skipping" && continue
+  pfix=pmmni
+  runtype=power_nogsr_mni
+  [ -z "$REDO" -a -r $sdir/afni_restproc/$runtype/$pfix.cleanEPI+tlrc.HEAD ] && echo "already done, skipping" && continue
 
   set -x
   qsub  -o $scriptdir/torquelog -j oe  -N $sid-arp qsub_afni_restproc.bash -Vv \
