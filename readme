@@ -25,4 +25,4 @@ transfer from wallace, see 99_transferProcessed.bash
 == PREPROC ANALYSIS  ==
 e.g. how many subjects, who
 
-generate data (in txt/) with analysis/numVolFDthres.bash
+generate data summary (e.g. txt/SubjectTimeAgeSexFD.txt) with analysis/numVolFDthres.bash

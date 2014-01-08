@@ -36,8 +36,8 @@ for sid in $(find -L /data/Luna1/Raw/MRRC_Org/ -maxdepth 2 -type d -iname '[0-9]
   [ -z "$REDO" -a -r $sdir/afni_restproc/$runtype/$pfix.cleanEPI+tlrc.HEAD ] && echo "already done, skipping" && continue
 
   set -x
-  qsub  -o $scriptdir/torquelog -j oe  -N $sid-arp qsub_afni_restproc.bash -Vv \
-      sid="$sid",sdir="$sdir/",aseg="$fsdir/mri/aseg.mgz",t1="$fsdir/mri/T1.mgz",t2="$origepi",physio="$physiofile",runtype="power_nogsr",origepi=$origepi,REDO=$REDO
+  qsub  -h -o $scriptdir/torquelog -j oe  -N $sid-arp qsub_afni_restproc.bash -Vv \
+      sid="$sid",sdir="$sdir/",aseg="$fsdir/mri/aseg.mgz",t1="$fsdir/mri/T1.mgz",t2="$origepi",physio="$physiofile",runtype="power_nogsr",origepi=$origepi,REDO=1; #$REDO #redo if it didn't finish
   set +x
 
   ## NO QSUB

@@ -3,12 +3,15 @@
 ## check out
 # paste RewardRest/10662_20090507/afni_restproc/power_nogsr/tmp/10662_20090507_restepi.float_tsh_vr_motion.tcat.deltamotion.FD.1D RewardRest/10662_20090507/afni_restproc/power_nogsr/tmp/10662_20090507_restepi.float_tsh_vr_motion.tcat.deltamotion.FD.extreme0.5.1D|sort -nr 
 scriptdir=$(cd $(dirname $0);pwd)
+runtype=power_nogsr_mni
+pfix=pmmni
+outputfile=$scriptdir/../txt/SubjectTimeAgeSexFD_$runtype.txt
+
 cd ../RewardRest/
-outputfile=$scriptdir/../txt/SubjectTimeAgeSexFD.txt
 echo sid age tpoint sex remaingvols origvols| tr ' ' "	" | tee $outputfile
 ls -d 1*_* --color=no | perl -F"_" -slane 'push @{$a{$F[0]}}, $F[1]; END{for my $l (sort(keys %a)){ @v=sort(@{$a{$l}}); print join("\n", map { "t". ($_+1) ." ${l}_$v[$_]" } (0..$#v)) }}'| while read tpoint sid; do
   origvols=$(3dinfo -nv $sid/${sid}_restepi+orig.HEAD)
-  remaingvols=$(3dinfo -nv $sid/afni_restproc/power_nogsr/pm.cleanEPI+tlrc.HEAD)
+  remaingvols=$(3dinfo -nv $sid/afni_restproc/$runtype/$pfix.cleanEPI+tlrc.HEAD)
   age=$(cat $sid/$sid.age.txt)
   sex=$(cat $sid/$sid.sex.txt)
   [ -z "$age" ] && age=0;
